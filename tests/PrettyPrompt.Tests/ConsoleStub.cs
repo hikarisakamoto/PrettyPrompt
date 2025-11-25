@@ -283,7 +283,14 @@ internal static class ConsoleStub
         }
     }
 
-    // stub clipboard implementation for a in-memory clipboard to avoid Windows clipboard thread-affinity issues
+    /// <summary>
+    /// In-memory clipboard used by tests instead of TextCopy's OS-backed clipboard so we
+    /// avoid Windows STA/thread-affinity requirements and don't mutate the user's real clipboard.
+    /// </summary>
+    /// <remarks>
+    /// Paired with <see cref="ProtectedClipboard"/> to enforce that tests call <c>ProtectClipboard()</c>
+    /// before interacting with the stub, mirroring the production guard rails.
+    /// </remarks>
     private class StubClipboard : IClipboard
     {
         private string? text;
