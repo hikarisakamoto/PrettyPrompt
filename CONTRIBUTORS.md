@@ -6,3 +6,5 @@ with PrettyPrompt, which is heavily used by [csharprepl](https://github.com/waf/
 - Hubert Kindermann ([@kindermannhubert](https://github.com/kindermannhubert))
 - Ivan Kara ([@realivanjx](https://github.com/realivanjx))
 - Ulysses Wu ([@UlyssesWu](https://github.com/UlyssesWu))
+- Weihan Li ([@WeihanLi](https://github.com/WeihanLi))
+- Sakamoto ([@hikarisakamoto](https://github.com/hikarisakamoto))
