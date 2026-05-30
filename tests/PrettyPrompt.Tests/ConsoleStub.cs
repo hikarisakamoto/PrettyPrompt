@@ -30,7 +30,7 @@ internal static class ConsoleStub
         var console = Substitute.For<ConsoleWithClipboard>();
         console.BufferWidth.Returns(width);
         console.WindowHeight.Returns(height);
-        console.Clipboard.Returns(new ProtectedClipboard());
+        console.Clipboard.Returns(new ProtectedClipboard(new StubClipboard()));
 
         console.ProtectClipboard().Returns(
             _ =>
@@ -245,7 +245,12 @@ internal static class ConsoleStub
 
     private class ProtectedClipboard : IClipboard
     {
-        private readonly IClipboard clipboard = new Clipboard();
+        private readonly IClipboard clipboard;
+
+        public ProtectedClipboard(IClipboard clipboard)
+        {
+            this.clipboard = clipboard;
+        }
 
         public string? GetText()
         {
@@ -269,6 +274,46 @@ internal static class ConsoleStub
         {
             Check();
             return clipboard.SetTextAsync(text, cancellation);
+        }
+
+        private static void Check()
+        {
+            if (!isClipboardProtected)
+                throw new InvalidOperationException("If the test uses clipboard the test has to be wrapped by ProtectClipboard() method call.");
+        }
+    }
+
+    /// <summary>
+    /// In-memory clipboard used by tests instead of TextCopy's OS-backed clipboard so we
+    /// avoid Windows STA/thread-affinity requirements and don't mutate the user's real clipboard.
+    /// </summary>
+    /// <remarks>
+    /// Paired with <see cref="ProtectedClipboard"/> to enforce that tests call <c>ProtectClipboard()</c>
+    /// before interacting with the stub, mirroring the production guard rails.
+    /// </remarks>
+    private class StubClipboard : IClipboard
+    {
+        private string? text;
+
+        public string? GetText() => text;
+
+        public Task<string?> GetTextAsync(CancellationToken cancellation = default)
+        {
+            Check();
+            return Task.FromResult(text);
+        }
+
+        public void SetText(string text)
+        {
+            Check();
+            this.text = text;
+        }
+
+        public Task SetTextAsync(string text, CancellationToken cancellation = default)
+        {
+            Check();
+            this.text = text;
+            return Task.CompletedTask;
         }
 
         private static void Check()

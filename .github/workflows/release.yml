@@ -36,7 +36,7 @@ jobs:
       if: steps.CheckReleaseRequired.outputs.IS_RELEASE_REQUIRED == 'true' 
       with:
         dotnet-version: | 
-          8.0.x
+          10.0.x
 
     - name: Create NuGet Package
       if: steps.CheckReleaseRequired.outputs.IS_RELEASE_REQUIRED == 'true' 
