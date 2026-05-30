@@ -181,9 +181,11 @@ internal static class WordWrapping
                 lines.RemoveAt(lines.Count - 1);
                 if (maxLength > 3)
                 {
-                    Debug.Assert(lastLine.Length <= maxLength);
-                    lastLine = lastLine.Substring(0, Math.Min(maxLength - 3, lastLine.Length));
-                    lastLineModified = lastLine + new string('.', Math.Min(3, maxLength - lastLine.Length));
+                    Debug.Assert(lastLine.GetUnicodeWidth() <= maxLength);
+                    // reserve 3 columns for the ellipsis and truncate on a grapheme-cluster boundary by
+                    // display width (maxLength is a column budget, not a character count).
+                    lastLine = lastLine.Substring(0, UnicodeWidth.GetLengthThatFits(lastLine.Text, maxLength - 3));
+                    lastLineModified = lastLine + "...";
                 }
                 else
                 {

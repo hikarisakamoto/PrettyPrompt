@@ -55,4 +55,15 @@ public class UnicodeWidthTests
         Assert.Equal(expectedWidth, UnicodeWidth.GetGraphemeClusterWidth(cluster));
         Assert.InRange(UnicodeWidth.GetGraphemeClusterWidth(cluster), 0, 2);
     }
+
+    [Theory]
+    // GetLengthThatFits returns a CHAR count whose display width fits the column budget, on a cluster boundary.
+    [InlineData("abcde", 3, 3)]                          // narrow: 3 columns == 3 chars
+    [InlineData("\u4E66\u4E66\u4E66", 4, 2)]                          // each wide char is 2 columns; 4 columns fits 2 chars
+    [InlineData("\u4E66\u4E66\u4E66", 5, 2)]                          // 5 columns: a 3rd wide char would be 6, so stop at 2 chars
+    [InlineData("a\u4E66", 1, 1)]                            // 'a' fits 1 column; 书 would overflow
+    [InlineData("\U0001F926\U0001F3FC\u200D\u2642\uFE0Fx", 2, 7)]  // the width-2 emoji (7 chars) fits in 2 columns; 'x' would not
+    [InlineData("\U0001F926\U0001F3FC\u200D\u2642\uFE0Fx", 1, 0)]  // the emoji is 2 columns wide and cannot fit in 1
+    public void GetLengthThatFits_TruncatesByWidthOnClusterBoundary(string text, int maxWidth, int expectedLength)
+        => Assert.Equal(expectedLength, UnicodeWidth.GetLengthThatFits(text, maxWidth));
 }

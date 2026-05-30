@@ -5,7 +5,6 @@
 #endregion
 
 using System;
-using System.Diagnostics;
 using System.Linq;
 using PrettyPrompt.Consoles;
 
@@ -85,26 +84,37 @@ internal sealed class Screen : IDisposable
         if (screen.CellBuffer.Length == 0) return cursor;
 
         int row = Math.Min(cursor.Row, screen.Height - 1);
-        int column = Math.Min(cursor.Column, screen.Width - 1);
+        int charColumn = Math.Min(cursor.Column, screen.Width - 1);
         int rowStartIndex = row * screen.Width;
-        int rowCursorIndex = rowStartIndex + column;
-        int extraColumnOffset = 0;
-        for (int i = row * screen.Width; i <= rowCursorIndex + extraColumnOffset; i++)
+
+        // cursor.Column is a char index (UTF-16 offset) within the row. Convert it to a display column by
+        // walking the row's cells and summing each cell's ElementWidth (columns it occupies) while counting
+        // its Text.Length (chars it consumes). This handles every cluster shape:
+        //   '界'  -> 1 char, 2 columns      (wide)
+        //   '😀'  -> 2 chars, 2 columns     (surrogate pair)
+        //   '🤦🏼‍♂️' -> 7 chars, 2 columns     (ZWJ emoji sequence)
+        //   'é' (e + combining accent) -> 2 chars, 1 column (combining cluster)
+        int chars = 0;
+        int displayColumn = 0;
+        for (int i = rowStartIndex; i < rowStartIndex + screen.Width && chars < charColumn; i++)
         {
             var cell = screen.CellBuffer[i];
-            if (cell is not null && cell.IsContinuationOfPreviousCharacter)
+            if (cell is null)
             {
-                Debug.Assert(i > 0);
-                var previousCell = screen.CellBuffer[i - 1];
-                Debug.Assert(previousCell?.Text is not null);
-                Debug.Assert(previousCell.ElementWidth == 2);
-
-                //e.g. for '界' is previousCell.ElementWidth==2 and previousCell.Text.Length==1
-                //e.g. for '😀' is previousCell.ElementWidth==2 and previousCell.Text.Length==2 (which means cursor is already moved by 2 because of Text length)
-                extraColumnOffset += previousCell.ElementWidth - previousCell.Text.Length;
+                // an empty cell is rendered as a single space: one char, one column
+                chars++;
+                displayColumn++;
+            }
+            else if (!cell.IsContinuationOfPreviousCharacter)
+            {
+                // continuation cells carry no text/width of their own - they're accounted for by the
+                // ElementWidth of their main cell, so we only advance on main cells.
+                chars += cell.Text?.Length ?? 1;
+                displayColumn += cell.ElementWidth;
             }
         }
-        int newColumn = column + extraColumnOffset;
+
+        int newColumn = displayColumn;
         int newRow = cursor.Row - ViewPortOffset;
 
         return newColumn > screen.Width

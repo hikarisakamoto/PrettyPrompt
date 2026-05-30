@@ -73,6 +73,28 @@ public static class UnicodeWidth
         return Clamp(UnicodeCalculator.GetWidth(baseRune));
     }
 
+    /// <summary>
+    /// Returns the number of leading <see cref="char"/>s of <paramref name="text"/> whose combined
+    /// display width does not exceed <paramref name="maxWidth"/> columns. The returned length always
+    /// falls on a grapheme-cluster boundary, so slicing the text at it never splits a cluster or a
+    /// surrogate pair. Use this for width-bounded truncation instead of slicing by raw character count.
+    /// </summary>
+    public static int GetLengthThatFits(ReadOnlySpan<char> text, int maxWidth)
+    {
+        if (maxWidth <= 0) return 0;
+        int width = 0;
+        int i = 0;
+        while (i < text.Length)
+        {
+            int elementLength = StringInfo.GetNextTextElementLength(text.Slice(i));
+            int elementWidth = GetGraphemeClusterWidth(text.Slice(i, elementLength));
+            if (width + elementWidth > maxWidth) break;
+            width += elementWidth;
+            i += elementLength;
+        }
+        return i;
+    }
+
     // wcwidth returns -1 for control characters; PrettyPrompt renders those as zero width. The renderer
     // models a cell as at most two columns, so never let a single element exceed that.
     private static int Clamp(int wcwidth) => wcwidth < 0 ? 0 : Math.Min(wcwidth, 2);

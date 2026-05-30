@@ -290,11 +290,20 @@ public readonly struct FormattedString : IEquatable<FormattedString>
         while (partStart < text.Length)
         {
             int partLength = 0;
-            for (int i = partStart, partWidth = 0; i < text.Length; i++, partLength++)
             {
-                var cWidth = UnicodeWidth.GetWidth(text[i]);
-                partWidth += cWidth;
-                if (partWidth > chunkSize) break;
+                int partWidth = 0;
+                for (int i = partStart; i < text.Length;)
+                {
+                    int clusterLength = StringInfo.GetNextTextElementLength(text, i);
+                    int clusterWidth = UnicodeWidth.GetGraphemeClusterWidth(text.AsSpan(i, clusterLength));
+                    // stop before overflowing the chunk, but always emit at least one cluster so we make
+                    // progress even when a single wide cluster is larger than chunkSize. Splitting by raw
+                    // char count here could break a surrogate pair or grapheme cluster in two.
+                    if (partLength > 0 && partWidth + clusterWidth > chunkSize) break;
+                    partWidth += clusterWidth;
+                    i += clusterLength;
+                    partLength += clusterLength;
+                }
             }
 
             GenerateFormattingsForPart(partStart, partLength, partSeparatorLength: 0, ref usedFormattingCount, ref previousFormattingCharsUsed, formattingList);

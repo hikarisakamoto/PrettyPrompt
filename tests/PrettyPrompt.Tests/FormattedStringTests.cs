@@ -304,4 +304,23 @@ public class FormattedStringTests
             return list;
         }
     }
+
+    [Fact]
+    public void SplitIntoChunks_DoesNotSplitGraphemeClusters()
+    {
+        // 🤦🏼‍♂️ is one grapheme cluster (7 chars, display width 2). Widths: a1 b1 emoji2 c1 d1 = 6.
+        const string Emoji = "\U0001F926\U0001F3FC\u200D\u2642\uFE0F";
+        var text = "ab" + Emoji + "cd";
+        var chunks = new FormattedString(text).SplitIntoChunks(3).Select(c => c.Text!).ToList();
+
+        // chunks reassemble to the original, the emoji lives wholly within one chunk, and no chunk
+        // begins/ends with an orphaned surrogate half (which would mean a cluster was split).
+        Assert.Equal(text, string.Concat(chunks));
+        Assert.Contains(chunks, c => c.Contains(Emoji));
+        foreach (var chunk in chunks)
+        {
+            Assert.False(char.IsLowSurrogate(chunk[0]), "chunk starts with an orphaned low surrogate");
+            Assert.False(char.IsHighSurrogate(chunk[^1]), "chunk ends with an orphaned high surrogate");
+        }
+    }
 }

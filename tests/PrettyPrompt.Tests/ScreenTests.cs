@@ -62,6 +62,10 @@ public class ScreenTests
     [InlineData("\U0001F926\U0001F3FC\u200D\u2642\uFE0F", 2)]     // 🤦🏼‍♂️ full ZWJ sequence with variation selector
     [InlineData("\u79B0\U000E0100", 2)]                           // 禰󠄀 CJK ideograph + variation selector supplement (U+E0100)
     [InlineData("a\U0001F926\U0001F3FC", 3)]                      // narrow char then a two-column cluster
+
+    // base char + combining mark is a single-column cluster: the cursor lands one column past it, not two.
+    [InlineData("e\u0301", 1)]                                    // e + combining acute accent (decomposed "é")
+    [InlineData("ae\u0301b", 3)]                                  // a + combining "é" + b
     public void ScreenCursorPositionTest(string text, int expectedCursorPosition)
     {
         var screen = new Screen(

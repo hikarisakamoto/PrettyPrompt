@@ -175,11 +175,11 @@ internal class CodePane : IKeyPressHandler
                 break;
             case (Shift, LeftArrow):
             case LeftArrow:
-                Document.Caret = Math.Max(0, Document.Caret - 1);
+                Document.Caret = Document.CalculateCaretIndexToLeft();
                 break;
             case (Shift, RightArrow):
             case RightArrow:
-                Document.Caret = Math.Min(Document.Length, Document.Caret + 1);
+                Document.Caret = Document.CalculateCaretIndexToRight();
                 break;
             case (Control | Shift, LeftArrow):
             case (Control, LeftArrow):
@@ -198,10 +198,18 @@ internal class CodePane : IKeyPressHandler
                 Document.Remove(this, Document.Caret, endDeleteIndex - Document.Caret);
                 break;
             case Backspace when selection is null:
-                Document.Remove(this, Document.Caret - 1, 1);
+                {
+                    // delete the whole grapheme cluster to the left, not a single UTF-16 code unit
+                    var clusterStart = Document.CalculateCaretIndexToLeft();
+                    Document.Remove(this, clusterStart, Document.Caret - clusterStart);
+                }
                 break;
             case Delete when selection is null:
-                Document.Remove(this, Document.Caret, 1);
+                {
+                    // delete the whole grapheme cluster to the right, not a single UTF-16 code unit
+                    var clusterEnd = Document.CalculateCaretIndexToRight();
+                    Document.Remove(this, Document.Caret, clusterEnd - Document.Caret);
+                }
                 break;
             case (_, Delete) or (_, Backspace) or Delete or Backspace when selection.HasValue:
                 {
@@ -419,7 +427,7 @@ internal class CodePane : IKeyPressHandler
                     var newCursor = Cursor.MoveUp();
                     var aboveLine = WordWrappedLines[newCursor.Row];
                     Cursor = newCursor.WithColumn(Math.Min(aboveLine.Content.AsSpan().TrimEnd().Length, newCursor.Column));
-                    Document.Caret = aboveLine.StartIndex + Cursor.Column;
+                    Document.SetCaretRoundedToGraphemeBoundary(aboveLine.StartIndex + Cursor.Column);
                     key.Handled = true;
                     break;
                 }
@@ -429,7 +437,7 @@ internal class CodePane : IKeyPressHandler
                     var newCursor = Cursor.MoveDown();
                     var belowLine = WordWrappedLines[newCursor.Row];
                     Cursor = newCursor.WithColumn(Math.Min(belowLine.Content.AsSpan().TrimEnd().Length, newCursor.Column));
-                    Document.Caret = belowLine.StartIndex + Cursor.Column;
+                    Document.SetCaretRoundedToGraphemeBoundary(belowLine.StartIndex + Cursor.Column);
                     key.Handled = true;
                     break;
                 }
