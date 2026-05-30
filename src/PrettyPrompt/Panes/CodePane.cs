@@ -373,16 +373,22 @@ internal class CodePane : IKeyPressHandler
                 {
                     sb.Append(TabSpaces);
                 }
+                else if (c == '\n')
+                {
+                    sb.Append(c); // preserve newlines (multi-line paste)
+                }
+                else if (char.IsControl(c))
+                {
+                    // Strip other control characters (e.g. \r, NUL, ESC) that would corrupt terminal
+                    // rendering. We must NOT filter by display width here: zero-width scalars such as
+                    // combining marks, zero-width joiners, and variation selectors are legitimate parts
+                    // of grapheme clusters (e.g. the emoji sequence 🤦🏼‍♂️), and dropping them breaks the
+                    // cluster apart. See issue #270.
+                    continue;
+                }
                 else
                 {
-                    if (UnicodeWidth.GetWidth(c) >= 1)
-                    {
-                        sb.Append(c);
-                    }
-                    else
-                    {
-                        continue;
-                    }
+                    sb.Append(c);
                 }
             }
         }

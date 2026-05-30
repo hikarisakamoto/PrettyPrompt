@@ -390,6 +390,38 @@ public class PromptTests
     }
 
     /// <summary>
+    /// https://github.com/waf/PrettyPrompt/issues/270
+    /// Pasting must preserve the zero-width joiners, emoji modifiers, and variation selectors that
+    /// hold a grapheme cluster together - they must not be filtered out as "zero-width" characters,
+    /// otherwise the cluster breaks apart (e.g. 🤦🏼‍♂️ would render as 🤦🏼 followed by ♂).
+    /// </summary>
+    [Fact]
+    public async Task ReadLine_PasteEmojiAndCombiningSequences_ArePreservedIntact()
+    {
+        var console = ConsoleStub.NewConsole();
+        using (console.ProtectClipboard())
+        {
+            const string FacePalm = "\U0001F926\U0001F3FC\u200D\u2642\uFE0F"; // 🤦🏼‍♂️ (ZWJ sequence with VS-16)
+            console.Clipboard.SetText(FacePalm);
+            console.StubInput($"{Control}{V}{Enter}");
+            var prompt = new Prompt(console: console);
+            var result = await prompt.ReadLineAsync();
+            Assert.True(result.IsSuccess);
+            Assert.Equal(FacePalm, result.Text);
+
+            ////////////////////////////////////////////////
+
+            const string Accented = "e\u0301"; // é = base letter + combining acute accent
+            console.Clipboard.SetText(Accented);
+            console.StubInput($"{Control}{V}{Enter}");
+            prompt = new Prompt(console: console);
+            result = await prompt.ReadLineAsync();
+            Assert.True(result.IsSuccess);
+            Assert.Equal(Accented, result.Text);
+        }
+    }
+
+    /// <summary>
     /// https://github.com/waf/PrettyPrompt/issues/151
     /// </summary>
     [Fact]
