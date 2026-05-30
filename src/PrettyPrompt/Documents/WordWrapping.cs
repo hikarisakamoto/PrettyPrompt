@@ -50,7 +50,9 @@ internal static class WordWrapping
                 int unicodeWidth = UnicodeWidth.GetWidth(character);
                 if (unicodeWidth < 1)
                 {
-                    Debug.Fail("such character should not be present");
+                    // Zero-width scalars (combining marks, zero-width joiners, variation selectors, etc.)
+                    // are legitimate input - e.g. when pasting an emoji such as 🤦🏼‍♂️ - and advance
+                    // neither the line width nor the caret column. See issue #270.
                     continue;
                 }
                 currentLineLength += unicodeWidth;

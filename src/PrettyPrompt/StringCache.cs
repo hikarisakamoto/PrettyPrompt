@@ -51,7 +51,9 @@ internal sealed class StringCache
         else
         {
             var result = characters.ToString();
-            unicodeWidth = UnicodeWidth.GetWidth(result);
+            // 'characters' is always a single grapheme cluster (see Cell.AddTo), so its cell width is
+            // the width of the cluster's base scalar, capped at 2 — not the sum of its code units.
+            unicodeWidth = UnicodeWidth.GetGraphemeClusterWidth(characters);
             return result;
         }
     }
