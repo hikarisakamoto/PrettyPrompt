@@ -103,6 +103,11 @@ internal static class CellRenderer
             }
             highlightedRows[lineIndex - startLine] = row;
         }
+
+        // Return the lookup to the pool. The dict is local and its values (FormatSpan/ConsoleFormat) are value
+        // types copied into the cells, so nothing outlives this call. Without this Put the pool stayed empty and
+        // every render allocated a fresh dictionary sized to ALL highlight spans (large in highlight-heavy docs).
+        HighlightsGroupingPool.Shared.Put(highlightsLookup);
         return highlightedRows;
     }
 
