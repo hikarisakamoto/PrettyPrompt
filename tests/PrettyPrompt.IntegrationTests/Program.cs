@@ -39,13 +39,28 @@ public static class Program
 
                     foreach (var test in tests)
                     {
-                        Console.Clear();
-                        Console.WriteLine("Start typing:");
+                        // Note: the console is cleared and the "Start typing:" banner is printed inside
+                        // each test (after the buffer is resized) to keep the initial cursor deterministic.
                         await test();
                     }
 
                     Console.Clear();
                     Console.WriteLine("All integration tests ran successfully");
+                }
+                break;
+
+            case "regen":
+                {
+                    // Rewrites the expected output logs (Data/*.output.txt) from current behavior,
+                    // reusing the recorded input keystrokes. Run from a real terminal.
+                    // (Clear + banner happen inside the replay, after the buffer is resized.)
+                    foreach (var biggerBufferThanWindow in new[] { false, true })
+                    {
+                        await Tests.Regen_228_229(biggerBufferThanWindow);
+                    }
+
+                    Console.Clear();
+                    Console.WriteLine("Regenerated expected output logs.");
                 }
                 break;
 
@@ -57,7 +72,11 @@ public static class Program
     internal static async Task Run(IConsole console)
     {
         var prompt = new Prompt(
-            persistentHistoryFilepath: "./history-file",
+            // No persistent history file: it would carry submitted entries across runs, and the
+            // replayed history-navigation keys would then render differently from the recorded
+            // (clean-state) golden output, making the test non-deterministic. In-session history
+            // still works, so the replay depends only on the fixed recorded keystrokes.
+            persistentHistoryFilepath: null,
             callbacks: new PrettyPrompt.Program.FruitPromptCallbacks(),
             console: console,
             configuration: new PromptConfiguration(
