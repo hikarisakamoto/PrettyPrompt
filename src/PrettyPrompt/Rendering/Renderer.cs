@@ -145,52 +145,77 @@ internal class Renderer : IDisposable
 
     private ScreenArea BuildCodeScreenArea(CodePane codePane, IReadOnlyCollection<FormatSpan> highlights)
     {
-        var highlightedLines = CellRenderer.ApplyColorToCharacters(highlights, codePane.WordWrappedLines, codePane.Selection, configuration.SelectedTextBackground);
+        var wrappedLines = codePane.WordWrappedLines;
+        int wrappedCount = wrappedLines.Count;
 
-        // if we've filled up the full line, add a new line at the end so we can render our cursor on this new line.
-        if (highlightedLines[^1].Length > 0
-            && (highlightedLines[^1].Length >= codePane.CodeAreaWidth
-                || highlightedLines[^1][^1]?.Text == "\n"))
+        // If the last wrapped line is full (or ends in a newline), we render an extra blank line below it so
+        // the cursor can sit on a fresh line. This depends only on the last wrapped line, so we decide it up
+        // front (measuring a single throwaway row) without having to build every row.
+        bool trailingBlankLine = LastWrappedLineNeedsTrailingBlank(wrappedLines, codePane.CodeAreaWidth);
+        int renderedLineCount = wrappedCount + (trailingBlankLine ? 1 : 0);
+
+        // Compute the visible line range FIRST, then build cells only for those lines. Previously every
+        // wrapped line was turned into a Row, and TrimLinesToViewPortSize then sliced out the off-screen
+        // ones - which were never placed in a Screen and so never Disposed, leaking their pooled cells on
+        // every keystroke for any document taller than the window (see PERFORMANCE_PLAN.md Tier C).
+        (int viewPortStart, int viewPortEnd) = GetViewPortRange(codePane.Cursor.Row, renderedLineCount);
+
+        int wrappedEnd = Math.Min(viewPortEnd, wrappedCount);
+        var highlightedLines = CellRenderer.ApplyColorToCharacters(
+            highlights, wrappedLines, codePane.Selection, configuration.SelectedTextBackground, viewPortStart, wrappedEnd);
+
+        // Append the trailing blank line only if it falls within the viewport (the bottom of the document is visible).
+        if (trailingBlankLine && viewPortEnd == renderedLineCount)
         {
             Array.Resize(ref highlightedLines, highlightedLines.Length + 1);
             highlightedLines[^1] = new Row(0);
         }
 
-        (highlightedLines, int bufferStart) = TrimLinesToViewPortSize(codePane, highlightedLines);
-
-        var codeWidget = new ScreenArea(ConsoleCoordinate.Zero, highlightedLines, TruncateToScreenHeight: false, ViewPortStart: bufferStart);
+        var codeWidget = new ScreenArea(ConsoleCoordinate.Zero, highlightedLines, TruncateToScreenHeight: false, ViewPortStart: viewPortStart);
         return codeWidget;
     }
 
     /// <summary>
-    /// If there are too many lines of code to show in the current console window, return a subset
-    /// of the lines that fit in the console window ("viewport") along with the index of the line
-    /// where the viewport starts.
-    /// The lines returned will always contain the line that contains the cursor.
+    /// Whether an extra blank line should be rendered below the last wrapped line so the cursor can sit on a
+    /// fresh line. Measures the real cells of the last wrapped line (cell count and last-cell text are
+    /// independent of highlighting/selection) and returns the row to the pool.
     /// </summary>
-    private (Row[] rowsInViewPort, int viewPortStart) TrimLinesToViewPortSize(CodePane codePane, Row[] highlightedLines)
+    private static bool LastWrappedLineNeedsTrailingBlank(IReadOnlyList<Documents.WrappedLine> wrappedLines, int codeAreaWidth)
+    {
+        using var lastRow = new Row(wrappedLines[^1].Content);
+        return lastRow.Length > 0
+            && (lastRow.Length >= codeAreaWidth || lastRow[lastRow.Length - 1].Text == "\n");
+    }
+
+    /// <summary>
+    /// If there are too many lines of code to show in the current console window, return the half-open range
+    /// [start, end) of lines that fit in the console window ("viewport"); otherwise the whole document. The
+    /// range always contains the cursor line. This replaces the previous build-everything-then-slice approach
+    /// (the old TrimLinesToViewPortSize) so callers can build cells for only the visible rows.
+    /// </summary>
+    private (int viewPortStart, int viewPortEnd) GetViewPortRange(int cursorRow, int renderedLineCount)
     {
         const int BlankBufferLines = 2;
-        if (highlightedLines.Length <= console.WindowHeight - BlankBufferLines)
+        int height = console.WindowHeight - BlankBufferLines;
+        if (renderedLineCount <= height)
         {
-            return (highlightedLines, 0);
+            return (0, renderedLineCount);
         }
 
-        int height = console.WindowHeight - BlankBufferLines;
-        int bufferStart = codePane.Cursor.Row - height / 2;
+        int bufferStart = cursorRow - height / 2;
         int bufferEnd = bufferStart + height;
         if (bufferStart < 0)
         {
             bufferStart = 0;
             bufferEnd = bufferStart + height;
         }
-        else if (bufferEnd > highlightedLines.Length)
+        else if (bufferEnd > renderedLineCount)
         {
-            bufferStart -= (bufferEnd - highlightedLines.Length);
-            bufferEnd = highlightedLines.Length;
+            bufferStart -= (bufferEnd - renderedLineCount);
+            bufferEnd = renderedLineCount;
         }
 
-        return (highlightedLines[bufferStart..bufferEnd], bufferStart);
+        return (bufferStart, bufferEnd);
     }
 
     private ScreenArea[] BuildCompletionScreenAreas(
