@@ -161,7 +161,10 @@ internal class BoxDrawing
         {
             row = new Row(boxWidth);
             var line = lineList[i];
-            FillLineRow(row, line.Substring(0, Math.Min(line.Length, lineAvailableWidth)), i, background);
+            // truncate to the available column width on a grapheme-cluster boundary - lineAvailableWidth is
+            // a display-width budget, not a character count, so slicing by char count would overflow the box
+            // for wide characters and could split a surrogate pair or cluster.
+            FillLineRow(row, line.Substring(0, UnicodeWidth.GetLengthThatFits(line.Text, lineAvailableWidth)), i, background);
             rows.Add(row);
         }
 

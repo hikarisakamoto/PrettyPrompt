@@ -104,7 +104,10 @@ internal class CompletionPane : IKeyPressHandler
                     await Close(cancellationToken).ConfigureAwait(false);
                     return;
                 case LeftArrow or RightArrow:
-                    int caretNew = documentCaret + (key.ConsoleKeyInfo.Key == LeftArrow ? -1 : 1);
+                    // mirror the document's grapheme-cluster-aware caret movement (see CodePane arrow handling)
+                    int caretNew = key.ConsoleKeyInfo.Key == LeftArrow
+                        ? codePane.Document.CalculateCaretIndexToLeft()
+                        : codePane.Document.CalculateCaretIndexToRight();
                     if (caretNew < spanToReplace.Start || caretNew > spanToReplace.Start + spanToReplace.Length)
                     {
                         await Close(cancellationToken).ConfigureAwait(false);

@@ -47,12 +47,12 @@ internal static class WordWrapping
                 bool isCursorPastCharacter = caret > textIndex;
 
                 Debug.Assert(character != '\t', "tabs should be replaced by spaces");
+                // Zero-width scalars (combining marks, zero-width joiners, variation selectors, etc.) are
+                // legitimate input - e.g. when pasting an emoji such as 🤦🏼‍♂️. They contribute no display
+                // width (so they don't grow the line or trigger wrapping), but they ARE part of the
+                // string/line content, so they must still advance textIndex (the string index) and the
+                // caret column just like any other character. See issue #270.
                 int unicodeWidth = UnicodeWidth.GetWidth(character);
-                if (unicodeWidth < 1)
-                {
-                    Debug.Fail("such character should not be present");
-                    continue;
-                }
                 currentLineLength += unicodeWidth;
                 textIndex++;
 
@@ -181,9 +181,11 @@ internal static class WordWrapping
                 lines.RemoveAt(lines.Count - 1);
                 if (maxLength > 3)
                 {
-                    Debug.Assert(lastLine.Length <= maxLength);
-                    lastLine = lastLine.Substring(0, Math.Min(maxLength - 3, lastLine.Length));
-                    lastLineModified = lastLine + new string('.', Math.Min(3, maxLength - lastLine.Length));
+                    Debug.Assert(lastLine.GetUnicodeWidth() <= maxLength);
+                    // reserve 3 columns for the ellipsis and truncate on a grapheme-cluster boundary by
+                    // display width (maxLength is a column budget, not a character count).
+                    lastLine = lastLine.Substring(0, UnicodeWidth.GetLengthThatFits(lastLine.Text, maxLength - 3));
+                    lastLineModified = lastLine + "...";
                 }
                 else
                 {

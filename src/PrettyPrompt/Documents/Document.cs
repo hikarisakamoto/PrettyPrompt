@@ -225,10 +225,26 @@ internal class Document : IEquatable<Document>
     public WordWrappedText WrapEditableCharacters(int width)
         => WordWrapping.WrapEditableCharacters(stringBuilder, Caret, width);
 
+    /// <summary>Caret index one grapheme cluster to the left of the current caret (clamped to 0).</summary>
+    public int CalculateCaretIndexToLeft() => Grapheme.PreviousBoundary(currentText, Caret);
+
+    /// <summary>Caret index one grapheme cluster to the right of the current caret (clamped to Length).</summary>
+    public int CalculateCaretIndexToRight() => Grapheme.NextBoundary(currentText, Caret);
+
+    /// <summary>
+    /// Sets the caret to <paramref name="index"/>, snapping it back onto a grapheme-cluster boundary if it
+    /// landed inside a cluster (e.g. column-based vertical navigation into a wide character or emoji).
+    /// </summary>
+    public void SetCaretRoundedToGraphemeBoundary(int index) => Caret = Grapheme.RoundDownToBoundary(currentText, index);
+
     public void MoveToWordBoundary(int direction) =>
         Caret = CalculateWordBoundaryIndexNearCaret(direction);
 
     public int CalculateWordBoundaryIndexNearCaret(int direction)
+        // snap to a grapheme-cluster boundary so word navigation/deletion never lands inside a cluster
+        => Grapheme.RoundDownToBoundary(currentText, CalculateWordBoundaryIndexNearCaretCore(direction));
+
+    private int CalculateWordBoundaryIndexNearCaretCore(int direction)
     {
         if (direction == 0) throw new ArgumentOutOfRangeException(nameof(direction), "cannot be 0");
         direction = Math.Sign(direction);
