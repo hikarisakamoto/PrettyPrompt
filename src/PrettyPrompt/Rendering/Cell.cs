@@ -115,21 +115,15 @@ internal sealed class Cell
 
     private string GetDebuggerDisplay() => text + " " + Formatting.ToString();
 
-    internal class Pool
+    internal sealed class Pool : LockFreePool<Cell>
     {
-        private readonly Stack<Cell> pool = new();
+        // Cells are fine-grained and numerous (a screenful per frame), and rent/return alternate on the render
+        // thread, so keep this unbounded rather than risk reallocating cells every frame with a too-small cap.
+        public Pool() : base(maxRetained: int.MaxValue) { }
 
         public Cell Get(string? text, in ConsoleFormat formatting, int elementWidth = 1, bool isContinuationOfPreviousCharacter = false)
         {
-            Cell? result = null;
-            lock (pool)
-            {
-                if (pool.Count > 0)
-                {
-                    result = pool.Pop();
-                }
-            }
-            result ??= new Cell(isPoolable: true);
+            var result = Rent() ?? new Cell(isPoolable: true);
             result.Initialize(text, in formatting, elementWidth, isContinuationOfPreviousCharacter);
             return result;
         }
@@ -138,10 +132,7 @@ internal sealed class Cell
         {
             if (value.isPoolable)
             {
-                lock (pool)
-                {
-                    pool.Push(value);
-                }
+                ReturnToPool(value);
             }
         }
     }

@@ -58,8 +58,12 @@ internal class StringBuilderWithCaret
     {
         if (sb.Length > 0)
         {
-            Caret = 0;
             sb.Clear();
+            // Assign the caret field directly rather than via the Caret setter: the setter raises a transient
+            // caret-only Changed event mid-mutation (text already changed, but no TextChanged announced yet),
+            // which would drive consumers to recompute the cursor against now-stale state. The single
+            // InvokeChangedEvent below notifies once, with text and caret already consistent.
+            caret = 0;
             InvokeChangedEvent();
         }
     }
@@ -67,28 +71,38 @@ internal class StringBuilderWithCaret
     public void SetContents(string contents, int? caret = null)
     {
         sb.SetContents(contents);
-        Caret = caret ?? sb.Length;
+        // Assign the caret field directly (not via the Caret setter) to avoid a transient caret-only Changed
+        // event before the text change is announced - see the note in Clear().
+        this.caret = caret ?? sb.Length;
+        Debug.Assert(this.caret >= 0 && this.caret <= sb.Length);
         InvokeChangedEvent();
     }
 
     public void Insert(int index, char c)
     {
         sb.Insert(index, c);
-        ++Caret;
+        // Advance the caret via the field, not the Caret setter, so we don't raise a transient caret-only
+        // Changed event before the text change is announced (see the note in Clear()). The single
+        // InvokeChangedEvent below fires once, with text and caret already consistent - which matters for
+        // callers that update live without suspending events (e.g. streaming via InsertAtCaretAsync).
+        caret++;
+        Debug.Assert(caret >= 0 && caret <= sb.Length);
         InvokeChangedEvent();
     }
 
     public void Insert(int index, ReadOnlySpan<char> text)
     {
         sb.Insert(index, text);
-        Caret += text.Length;
+        caret += text.Length; // assign the field directly, not the Caret setter - see the note in Insert(int, char).
+        Debug.Assert(caret >= 0 && caret <= sb.Length);
         InvokeChangedEvent();
     }
 
     public void Remove(int startIndex, int length)
     {
         sb.Remove(startIndex, length);
-        Caret = startIndex;
+        caret = startIndex; // assign the field directly, not the Caret setter - see the note in Insert(int, char).
+        Debug.Assert(caret >= 0 && caret <= sb.Length);
         InvokeChangedEvent();
     }
 

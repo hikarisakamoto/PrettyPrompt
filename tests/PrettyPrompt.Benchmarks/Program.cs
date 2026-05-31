@@ -21,9 +21,19 @@ using static System.ConsoleModifiers;
 
 public static class Program
 {
-    public static void Main()
+    public static void Main(string[] args)
     {
-        BenchmarkRunner.Run<PromptBenchmark>();
+        // With no args, run every benchmark non-interactively. Pass BenchmarkDotNet filters to scope a run, e.g.
+        //   dotnet run -c Release --project tests/PrettyPrompt.Benchmarks -- --filter *PerKeystroke*
+        var switcher = BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly);
+        if (args.Length == 0)
+        {
+            switcher.RunAll();
+        }
+        else
+        {
+            switcher.Run(args);
+        }
 
         //For manual running or debugging:
         //var b = new PromptBenchmark();

@@ -367,6 +367,17 @@ internal class Document : IEquatable<Document>
         remove => stringBuilder.Changed -= value;
     }
 
+    /// <summary>
+    /// Fires only when the document text actually changes, not on caret-only moves (unlike <see cref="Changed"/>).
+    /// Used to trigger a full re-wrap; caret-only moves instead recompute the cursor cheaply from the existing
+    /// wrapped lines via <see cref="WordWrappedText.GetCursorForCaret"/> (see PERFORMANCE_PLAN.md Tier B1).
+    /// </summary>
+    public event Action? TextChanged
+    {
+        add => stringBuilder.TextChanged += value;
+        remove => stringBuilder.TextChanged -= value;
+    }
+
     /*
      * The following methods are forwarding along the StringBuilder APIs.
      */

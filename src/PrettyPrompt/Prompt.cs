@@ -83,6 +83,10 @@ public sealed class Prompt : IPrompt, IAsyncDisposable
         history.Track(codePane);
         cancellationManager.CaptureControlC();
 
+        // The dispatch set is fixed for the lifetime of this prompt, so allocate it once rather than twice
+        // per keystroke (OnKeyDown + OnKeyUp). Order is significant - panes get first crack in this order.
+        var keyPressHandlers = new IKeyPressHandler[] { completionPane, overloadPane, history, codePane };
+
         foreach (var key in KeyPress.ReadForever(console))
         {
             // grab the code area width every key press, so we rerender appropriately when the console is resized.
@@ -137,10 +141,10 @@ public sealed class Prompt : IPrompt, IAsyncDisposable
                 key = await promptCallbacks.TransformKeyPressAsync(codePane.Document.GetText(), codePane.Document.Caret, key, cancellationToken).ConfigureAwait(false);
             }
 
-            foreach (var panes in new IKeyPressHandler[] { completionPane, overloadPane, history, codePane })
+            foreach (var panes in keyPressHandlers)
                 await panes.OnKeyDown(key, cancellationToken).ConfigureAwait(false);
 
-            foreach (var panes in new IKeyPressHandler[] { completionPane, overloadPane, history, codePane })
+            foreach (var panes in keyPressHandlers)
                 await panes.OnKeyUp(key, cancellationToken).ConfigureAwait(false);
 
             await AutoFormatDocument(key, codePane, cancellationToken).ConfigureAwait(false);
