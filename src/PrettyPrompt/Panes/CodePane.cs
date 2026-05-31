@@ -201,48 +201,52 @@ internal class CodePane : IKeyPressHandler
             case (Control, End) or (Control | Shift, End):
                 Document.Caret = Document.Length;
                 break;
-            case (Shift, LeftArrow):
-            case LeftArrow:
+            case (Shift, LeftArrow) or LeftArrow or (Control, B): // Ctrl+B = backward one char (emacs)
                 Document.Caret = Document.CalculateCaretIndexToLeft();
                 break;
-            case (Shift, RightArrow):
-            case RightArrow:
+            case (Shift, RightArrow) or RightArrow or (Control, F): // Ctrl+F = forward one char (emacs)
                 Document.Caret = Document.CalculateCaretIndexToRight();
                 break;
-            case (Control | Shift, LeftArrow):
-            case (Control, LeftArrow):
+            case (Control | Shift, LeftArrow) or (Control, LeftArrow) or (Alt, B): // Alt+b = backward one word (emacs)
                 Document.MoveToWordBoundary(-1);
                 break;
-            case (Control | Shift, RightArrow):
-            case (Control, RightArrow):
+            case (Control | Shift, RightArrow) or (Control, RightArrow) or (Alt, F): // Alt+f = forward one word (emacs)
                 Document.MoveToWordBoundary(+1);
                 break;
-            case (Control, Backspace) when selection is null:
-                var startDeleteIndex = Document.CalculateWordBoundaryIndexNearCaret(-1);
-                Document.Remove(this, startDeleteIndex, Document.Caret - startDeleteIndex);
-                break;
-            case (Control, Delete) when selection is null:
-                var endDeleteIndex = Document.CalculateWordBoundaryIndexNearCaret(+1);
-                Document.Remove(this, Document.Caret, endDeleteIndex - Document.Caret);
-                break;
+            case (Control, Backspace)
+                or (Control, H)       // Ctrl+H = delete word backward, an alias of Ctrl+Backspace. Ideally this would be 'delete one character' but on Unix/macOS .NET reports the Ctrl+H byte (0x08) as (Control, Backspace). https://github.com/dotnet/runtime/issues/73379#issuecomment-1206168139
+                or (Alt, Backspace)   // Alt+Backspace = delete word backward (emacs)
+                when selection is null:
+                {
+                    var startDeleteIndex = Document.CalculateWordBoundaryIndexNearCaret(-1);
+                    Document.Remove(this, startDeleteIndex, Document.Caret - startDeleteIndex);
+                    break;
+                }
+            case (Control, Delete)
+                or (Alt, Delete)      // Alt+Delete = delete word forward (Mac Option+forward-delete)
+                or (Alt, D)           // Alt+d = delete word forward (emacs)
+                when selection is null:
+                {
+                    var endDeleteIndex = Document.CalculateWordBoundaryIndexNearCaret(+1);
+                    Document.Remove(this, Document.Caret, endDeleteIndex - Document.Caret);
+                    break;
+                }
             case Backspace when selection is null:
                 {
                     // delete the whole grapheme cluster to the left, not a single UTF-16 code unit
                     var clusterStart = Document.CalculateCaretIndexToLeft();
                     Document.Remove(this, clusterStart, Document.Caret - clusterStart);
+                    break;
                 }
-                break;
-            case Delete when selection is null:
+            case (Delete or (Control, D)) when selection is null: // Ctrl+D = delete one char forwards (emacs)
                 {
                     // delete the whole grapheme cluster to the right, not a single UTF-16 code unit
                     var clusterEnd = Document.CalculateCaretIndexToRight();
                     Document.Remove(this, Document.Caret, clusterEnd - Document.Caret);
+                    break;
                 }
-                break;
-            case (_, Delete) or (_, Backspace) or Delete or Backspace when selection.HasValue:
-                {
-                    Document.DeleteSelectedText(this);
-                }
+            case (_, Delete) or (_, Backspace) or Delete or Backspace or (Control, D) or (Alt, D) or (Control, H) or (Control, K) or (Control, U) when selection.HasValue:
+                Document.DeleteSelectedText(this);
                 break;
             case Tab or (Shift, Tab):
                 {
@@ -287,6 +291,20 @@ internal class CodePane : IKeyPressHandler
                     Document.Remove(this, span);
                     break;
                 }
+            case (Control, K) when selection is null: // Ctrl+K = delete from caret to end of the current line (emacs/readline kill-line); deletes only, does not write the clipboard
+                {
+                    var lineEnd = Document.CalculateLineBoundaryIndexNearCaret(+1, smartHome: false);
+                    var span = TextSpan.FromBounds(Document.Caret, lineEnd);
+                    Document.Remove(this, span);
+                    break;
+                }
+            case (Control, U) when selection is null: // Ctrl+U = delete from start of the current line to caret (readline/bash unix-line-discard; in emacs Ctrl+U is universal-argument); deletes only, does not write the clipboard
+                {
+                    var lineStart = Document.CalculateLineBoundaryIndexNearCaret(-1, smartHome: false);
+                    var span = TextSpan.FromBounds(lineStart, Document.Caret);
+                    Document.Remove(this, span);
+                    break;
+                }
             case (Control, C) when selection.TryGet(out var selectionValue):
                 {
                     var copiedContent = Document.GetText(selectionValue).ToString();
@@ -299,36 +317,42 @@ internal class CodePane : IKeyPressHandler
             case (Shift, Insert) when key.PastedText is not null:
                 PasteText(key.PastedText);
                 break;
-            case (Control, V):
-            case (Control | Shift, V):
-            case (Shift, Insert):
-                var clipboardText = await clipboard.GetTextAsync(cancellationToken).ConfigureAwait(false);
-                PasteText(clipboardText);
-                break;
+            case (Control, V) or (Control | Shift, V) or (Shift, Insert):
+                {
+                    var clipboardText = await clipboard.GetTextAsync(cancellationToken).ConfigureAwait(false);
+                    PasteText(clipboardText);
+                    break;
+                }
             case (Control, Z):
-                Document.Undo(out var newSelection);
-                Selection = newSelection;
-                if (newSelection.HasValue)
                 {
-                    completionPane.IsOpen = false;
-                    overloadPane.IsOpen = false;
+                    Document.Undo(out var undoSelection);
+                    Selection = undoSelection;
+                    if (undoSelection.HasValue)
+                    {
+                        completionPane.IsOpen = false;
+                        overloadPane.IsOpen = false;
+                    }
+                    break;
                 }
-                break;
             case (Control, Y):
-                Document.Redo(out newSelection);
-                Selection = newSelection;
-                if (newSelection.HasValue)
                 {
-                    completionPane.IsOpen = false;
-                    overloadPane.IsOpen = false;
+                    Document.Redo(out var redoSelection);
+                    Selection = redoSelection;
+                    if (redoSelection.HasValue)
+                    {
+                        completionPane.IsOpen = false;
+                        overloadPane.IsOpen = false;
+                    }
+                    break;
                 }
-                break;
             default:
-                if (!(char.IsControl(key.ConsoleKeyInfo.KeyChar) || promptCallbacks.TryGetKeyPressCallbacks(key.ConsoleKeyInfo, out _)))
                 {
-                    Document.InsertAtCaret(this, key.ConsoleKeyInfo.KeyChar);
+                    if (!(char.IsControl(key.ConsoleKeyInfo.KeyChar) || promptCallbacks.TryGetKeyPressCallbacks(key.ConsoleKeyInfo, out _)))
+                    {
+                        Document.InsertAtCaret(this, key.ConsoleKeyInfo.KeyChar);
+                    }
+                    break;
                 }
-                break;
         }
     }
 
@@ -449,8 +473,7 @@ internal class CodePane : IKeyPressHandler
 
         switch (key.ObjectPattern)
         {
-            case (Shift, UpArrow) when Cursor.Row > 0:
-            case UpArrow when Cursor.Row > 0:
+            case (Shift, UpArrow) or UpArrow or (Control, P) when Cursor.Row > 0: // Ctrl+P = previous line (emacs)
                 {
                     var newCursor = Cursor.MoveUp();
                     var aboveLine = WordWrappedLines[newCursor.Row];
@@ -459,8 +482,7 @@ internal class CodePane : IKeyPressHandler
                     key.Handled = true;
                     break;
                 }
-            case (Shift, DownArrow) when Cursor.Row < WordWrappedLines.Count - 1:
-            case DownArrow when Cursor.Row < WordWrappedLines.Count - 1:
+            case (Shift, DownArrow) or DownArrow or (Control, N) when Cursor.Row < WordWrappedLines.Count - 1: // Ctrl+N = next line (emacs)
                 {
                     var newCursor = Cursor.MoveDown();
                     var belowLine = WordWrappedLines[newCursor.Row];

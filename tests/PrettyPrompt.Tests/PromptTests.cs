@@ -208,6 +208,193 @@ public class PromptTests
     }
 
     [Fact]
+    public async Task ReadLine_EmacsCharNavigation_CtrlBCtrlF()
+    {
+        // Ctrl+B / Ctrl+F are emacs aliases for Left/Right arrow
+        var console = ConsoleStub.NewConsole();
+        console.StubInput($"abcd{Control}{B}{Control}{B}X{Control}{F}Y{Enter}");
+
+        var prompt = new Prompt(console: console);
+        var result = await prompt.ReadLineAsync();
+
+        // "abcd": Ctrl+B twice puts the caret between 'b' and 'c' -> type X -> "abXcd";
+        // Ctrl+F moves past 'c' -> type Y -> "abXcYd".
+        Assert.Equal("abXcYd", result.Text);
+    }
+
+    [Fact]
+    public async Task ReadLine_EmacsLineNavigation_CtrlPCtrlN()
+    {
+        // Ctrl+P / Ctrl+N are emacs aliases for Up/Down arrow
+        var console = ConsoleStub.NewConsole();
+        console.StubInput(
+            $"aaa{Shift}{Enter}",
+            $"bbb{Shift}{Enter}",
+            $"ccc",
+            $"{Control}{P}{Control}{P}{Home}1",
+            $"{Control}{N}{End}2",
+            $"{Enter}"
+        );
+
+        var prompt = new Prompt(console: console);
+        var result = await prompt.ReadLineAsync();
+
+        // From line 3, Ctrl+P twice reaches line 1 (Home, type 1 -> "1aaa");
+        // Ctrl+N moves down to line 2 (End, type 2 -> "bbb2").
+        Assert.Equal($"1aaa{NewLine}bbb2{NewLine}ccc", result.Text);
+    }
+
+    [Fact]
+    public async Task ReadLine_EmacsForwardDelete_CtrlD()
+    {
+        // Ctrl+D is the emacs alias for Delete
+        var console = ConsoleStub.NewConsole();
+        console.StubInput($"abcd{Home}{Control}{D}{Control}{D}{Enter}");
+
+        var prompt = new Prompt(console: console);
+        var result = await prompt.ReadLineAsync();
+
+        // Home moves to the start; Ctrl+D deletes 'a' then 'b'.
+        Assert.Equal("cd", result.Text);
+    }
+
+    [Fact]
+    public async Task ReadLine_DeleteToEndOfLine_CtrlK()
+    {
+        // Ctrl+K (emacs/readline kill-line) deletes from the caret to the end of the current line, not past the newline.
+        // Even though it's technically a "cut" in emacs/readline terminology, that's to the kill ring,
+        // so as a design choice we decided not to touch the system clipboard.
+        var console = ConsoleStub.NewConsole();
+        using (console.ProtectClipboard())
+        {
+            console.Clipboard.SetText("");
+            console.StubInput(
+                $"aaXbb{Shift}{Enter}",
+                $"ccc",
+                $"{Control}{P}{Home}{RightArrow}{RightArrow}{Control}{K}{Enter}"
+            );
+
+            var prompt = new Prompt(console: console);
+            var result = await prompt.ReadLineAsync();
+
+            // Caret after "aa" on line 1; Ctrl+K deletes "Xbb" (to end of line, leaving the newline intact).
+            Assert.Equal($"aa{NewLine}ccc", result.Text);
+            Assert.Equal("", console.Clipboard.GetText()); // clipboard left untouched
+        }
+    }
+
+    [Fact]
+    public async Task ReadLine_DeleteToStartOfLine_CtrlU()
+    {
+        // Ctrl+U (readline/bash unix-line-discard; in emacs Ctrl+U is universal-argument) deletes from
+        // the start of the current line to the caret. Even though it's technically a "cut" in readline
+        // terminology, that's to the kill ring, so as a design choice we decided not to touch the system clipboard.
+        var console = ConsoleStub.NewConsole();
+        using (console.ProtectClipboard())
+        {
+            console.Clipboard.SetText("");
+            console.StubInput($"hello world{Home}{RightArrow}{RightArrow}{RightArrow}{RightArrow}{RightArrow}{Control}{U}{Enter}");
+
+            var prompt = new Prompt(console: console);
+            var result = await prompt.ReadLineAsync();
+
+            // Caret after "hello"; Ctrl+U deletes "hello", leaving " world".
+            Assert.Equal(" world", result.Text);
+            Assert.Equal("", console.Clipboard.GetText()); // clipboard left untouched
+        }
+    }
+
+    [Fact]
+    public async Task ReadLine_LineKill_WithSelection_DeletesSelection()
+    {
+        // With an active selection, Ctrl+K / Ctrl+U delete the selection (like Backspace/Delete/Ctrl+D),
+        // rather than killing to the line boundary or silently dropping the selection.
+        var console = ConsoleStub.NewConsole();
+        var prompt = new Prompt(console: console);
+
+        // select "bc", then Ctrl+K deletes the selection -> "ad"
+        console.StubInput($"abcd{Home}{RightArrow}{Shift}{RightArrow}{Shift}{RightArrow}{Control}{K}{Enter}");
+        var result = await prompt.ReadLineAsync();
+        Assert.True(result.IsSuccess);
+        Assert.Equal("ad", result.Text);
+
+        // select "bc", then Ctrl+U deletes the selection -> "ad"
+        console.StubInput($"abcd{Home}{RightArrow}{Shift}{RightArrow}{Shift}{RightArrow}{Control}{U}{Enter}");
+        result = await prompt.ReadLineAsync();
+        Assert.True(result.IsSuccess);
+        Assert.Equal("ad", result.Text);
+    }
+
+    [Fact]
+    public async Task ReadLine_EmacsWordNavigation_AltFAltB()
+    {
+        // Alt+f / Alt+b are emacs aliases for Ctrl+RightArrow / Ctrl+LeftArrow (word motion).
+        // Mirrors ReadLine_NextWordPrevWordKeys with the Alt keys so the same edits produce the same text.
+        var console = ConsoleStub.NewConsole();
+        console.StubInput(
+            $"aaaa bbbb 5555{Shift}{Enter}",
+            $"dddd x5x5 foo.bar{Shift}{Enter}",
+            $"{UpArrow}{Alt}{F}{Alt}{F}{Alt}{F}{Alt}{F}lum",
+            $"{Alt}{B}{Alt}{B}{Alt}{B}{Backspace}{Tab}",
+            $"{Enter}"
+        );
+
+        var prompt = new Prompt(console: console);
+        var result = await prompt.ReadLineAsync();
+
+        Assert.Equal($"aaaa bbbb 5555{NewLine}dddd x5x5{DefaultTabSpaces}foo.lumbar{NewLine}", result.Text);
+    }
+
+    [Fact]
+    public async Task ReadLine_EmacsDeleteWord_AltDAltBackspace()
+    {
+        // Alt+d / Alt+Backspace are emacs aliases for Ctrl+Delete / Ctrl+Backspace (word delete).
+        // Mirrors ReadLine_DeleteWordPrevWordKeys with the Alt keys.
+        var console = ConsoleStub.NewConsole();
+        console.StubInput(
+            $"aaaa bbbb cccc{Shift}{Enter}",
+            $"dddd eeee ffff{Shift}{Enter}",
+            $"{UpArrow}{Alt}{D}{Alt}{Backspace}",
+            $"{Enter}"
+        );
+
+        var prompt = new Prompt(console: console);
+        var result = await prompt.ReadLineAsync();
+
+        Assert.Equal($"aaaa bbbb eeee ffff{NewLine}", result.Text);
+    }
+
+    [Fact]
+    public async Task ReadLine_DeleteWordForward_AltDelete()
+    {
+        // Alt+Delete = delete word forward (Mac Option+forward-delete), an alias of Ctrl+Delete.
+        var console = ConsoleStub.NewConsole();
+        console.StubInput($"foo bar baz{Home}{Alt}{Delete}{Enter}");
+
+        var prompt = new Prompt(console: console);
+        var result = await prompt.ReadLineAsync();
+
+        // Home moves to start; Alt+Delete deletes the first word forward (including its trailing space).
+        Assert.Equal("bar baz", result.Text);
+    }
+
+    [Fact]
+    public async Task ReadLine_CtrlH_DeletesWordBackward()
+    {
+        // Ctrl+H is bound to delete-word-backward, a true alias of Ctrl+Backspace (issue #277).
+        // On macOS the Ctrl+H byte (0x08) is reported by .NET as (Control, Backspace) anyway, so it
+        // lands on the same action; on Windows it arrives as (Control, H). Both resolve to delete-word.
+        var console = ConsoleStub.NewConsole();
+        console.StubInput($"foo bar baz{Control}{H}{Enter}");
+
+        var prompt = new Prompt(console: console);
+        var result = await prompt.ReadLineAsync();
+
+        // Ctrl+H deletes the last word "baz".
+        Assert.Equal("foo bar ", result.Text);
+    }
+
+    [Fact]
     public async Task ReadLine_TypeReallyQuickly_DoesNotDropKeyPresses()
     {
         var console = ConsoleStub.NewConsole();

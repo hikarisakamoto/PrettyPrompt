@@ -16,6 +16,7 @@ using PrettyPrompt.Documents;
 using PrettyPrompt.Highlighting;
 using PrettyPrompt.Rendering;
 using static System.ConsoleKey;
+using static System.ConsoleModifiers;
 
 namespace PrettyPrompt.Panes;
 
@@ -194,8 +195,7 @@ internal class OverloadPane : IKeyPressHandler
                 case Escape:
                     Close();
                     break;
-                case DownArrow:
-                case UpArrow:
+                case DownArrow or UpArrow or (Control, N) or (Control, P): // Ctrl+N/Ctrl+P are emacs aliases
                     patternToProcessInKeyUp = key.ObjectPattern;
                     key.Handled = true;
                     break;
@@ -225,11 +225,11 @@ internal class OverloadPane : IKeyPressHandler
             {
                 switch (key.ObjectPattern)
                 {
-                    case DownArrow:
+                    case DownArrow or (Control, N): // Ctrl+N = next overload (emacs)
                         ++SelectedItemIndex;
                         key.Handled = true;
                         break;
-                    case UpArrow:
+                    case UpArrow or (Control, P): // Ctrl+P = previous overload (emacs)
                         --SelectedItemIndex;
                         key.Handled = true;
                         break;

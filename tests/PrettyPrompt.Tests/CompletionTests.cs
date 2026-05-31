@@ -48,6 +48,22 @@ public class CompletionTests
     }
 
     [Fact]
+    public async Task ReadLine_MultipleCompletion_NavigatesMenuWithCtrlNAndCtrlP()
+    {
+        var console = ConsoleStub.NewConsole();
+        // identical to ReadLine_MultipleCompletion, but navigate the open menu with Ctrl+N / Ctrl+P
+        // (emacs aliases for the arrow keys) instead of Down/Up.
+        console.StubInput($"Aa{Enter} Z{Tab} Alli{Backspace}{Backspace}{Control}{N}{Control}{P}{Control}{N}{Enter}{Enter}");
+
+        var prompt = ConfigurePrompt(console);
+
+        var result = await prompt.ReadLineAsync();
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("Aardvark Zebra Alligator", result.Text);
+    }
+
+    [Fact]
     public async Task ReadLine_MultilineCompletion()
     {
         var console = ConsoleStub.NewConsole();
