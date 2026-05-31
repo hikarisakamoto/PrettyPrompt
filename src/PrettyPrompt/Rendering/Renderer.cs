@@ -92,6 +92,7 @@ internal class Renderer : IDisposable
         {
             if (key.ObjectPattern is (Control, L))
             {
+                previouslyRenderedScreen.Dispose(); // return its pooled buffer before we drop it
                 previouslyRenderedScreen = new Screen(0, 0, ConsoleCoordinate.Zero);
                 console.Clear(); // for some reason, using escape codes (ClearEntireScreen and MoveCursorToPosition) leaves
                                  // CursorTop in an old (cached?) state. Using Console.Clear() works around this.

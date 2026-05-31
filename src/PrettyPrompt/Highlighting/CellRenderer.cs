@@ -171,30 +171,17 @@ internal static class CellRenderer
         return ApplyColorToCharacters(highlights, wrapped.WrappedLines, selection: null, selectedTextBackground: null);
     }
 
-    private sealed class HighlightsGroupingPool
+    private sealed class HighlightsGroupingPool : LockFreePool<Dictionary<int, FormatSpan>>
     {
-        private readonly Stack<Dictionary<int, FormatSpan>> pool = new();
-
         public static readonly HighlightsGroupingPool Shared = new();
+
+        // One lookup is in flight per render (occasionally two when panes render), so a small cap is plenty.
+        private HighlightsGroupingPool() : base(maxRetained: 8) { }
 
         public Dictionary<int, FormatSpan> Get(IReadOnlyCollection<FormatSpan> highlights)
         {
-            Dictionary<int, FormatSpan>? result = null;
-            lock (pool)
-            {
-                if (pool.Count > 0)
-                {
-                    result = pool.Pop();
-                }
-            }
-            if (result is null)
-            {
-                result = new Dictionary<int, FormatSpan>(highlights.Count);
-            }
-            else
-            {
-                result.EnsureCapacity(highlights.Count);
-            }
+            var result = Rent() ?? new Dictionary<int, FormatSpan>(highlights.Count);
+            result.EnsureCapacity(highlights.Count);
 
             foreach (var highlight in highlights)
             {
@@ -214,13 +201,10 @@ internal static class CellRenderer
             return result;
         }
 
-        public void Put(Dictionary<int, FormatSpan> list)
+        public void Put(Dictionary<int, FormatSpan> lookup)
         {
-            list.Clear();
-            lock (pool)
-            {
-                pool.Push(list);
-            }
+            lookup.Clear();
+            ReturnToPool(lookup);
         }
     }
 }

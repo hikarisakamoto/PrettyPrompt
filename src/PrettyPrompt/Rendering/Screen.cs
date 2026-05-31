@@ -17,6 +17,7 @@ namespace PrettyPrompt.Rendering;
 internal sealed class Screen : IDisposable
 {
     private readonly ScreenArea[] screenAreas;
+    private bool disposed;
 
     public int Width { get; }
     public int Height { get; }
@@ -37,7 +38,7 @@ internal sealed class Screen : IDisposable
             )
             .DefaultIfEmpty()
             .Max();
-        this.CellBuffer = new Cell[Width * Height];
+        this.CellBuffer = ScreenBufferPool.Shared.Get(Width * Height);
         this.MaxIndex = FillCharBuffer(screenAreas);
         this.Cursor = PositionCursor(this, cursor);
     }
@@ -126,9 +127,19 @@ internal sealed class Screen : IDisposable
 
     public void Dispose()
     {
+        // Guard against double-dispose: returning the same buffer to the pool twice would let two screens
+        // rent and write the same buffer. (Row.Dispose is already self-guarded, so disposing the areas twice
+        // was previously harmless, but the buffer Put is not.)
+        if (disposed)
+        {
+            return;
+        }
+        disposed = true;
+
         foreach (var screenArea in screenAreas)
         {
             screenArea.Dispose();
         }
+        ScreenBufferPool.Shared.Put(CellBuffer);
     }
 }
