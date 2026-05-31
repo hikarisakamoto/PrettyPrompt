@@ -1,3 +1,17 @@
+# Release 5.0.0
+
+- Breaking change: Target .NET 10 ([#280](https://github.com/waf/PrettyPrompt/pull/280)).
+- Unicode handling: switch from per-character tracking to grapheme-cluster tracking, so multi-codepoint glyphs are measured and edited as single units ([#282](https://github.com/waf/PrettyPrompt/pull/282)).
+    - Fix crash on certain unicode combining characters.
+    - Fix handling of zero-width joiners (e.g. multi-codepoint emoji).
+- Performance improvements for long documents ([#284](https://github.com/waf/PrettyPrompt/pull/284)).
+    - Viewport-bound cell generation, so rendering cost scales with the visible window rather than the total input length.
+    - Avoid re-wrapping the entire document on caret moves and navigation.
+    - Add a screen buffer pool and reduce allocations.
+- Add more emacs/readline keybindings ([#288](https://github.com/waf/PrettyPrompt/pull/288)).
+- Allow Alt+Enter to insert a soft newline ([#281](https://github.com/waf/PrettyPrompt/pull/281)).
+- Fix missing `SetLastError` on the native console-mode call, so failures are reported correctly ([#287](https://github.com/waf/PrettyPrompt/pull/287)).
+
 # Release 4.1.0
 
 - Handle invalid history entries / history log corruption ([#267](https://github.com/waf/PrettyPrompt/pull/267)).
