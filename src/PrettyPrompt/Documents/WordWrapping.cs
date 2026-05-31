@@ -228,6 +228,53 @@ internal struct WordWrappedText
         this.cursor = default;
         Cursor = cursor;
     }
+
+    /// <summary>
+    /// Recomputes the 2-D cursor coordinate for a 1-D <paramref name="caret"/> index from the already-wrapped
+    /// lines, WITHOUT re-wrapping. Used on caret-only moves (see PERFORMANCE_PLAN.md Tier B1). This must produce
+    /// the identical coordinate that <see cref="WordWrapping.WrapEditableCharacters"/> would compute for the same
+    /// caret, text and width - a DEBUG assertion in <c>CodePane</c> verifies this on every caret move.
+    /// </summary>
+    public ConsoleCoordinate GetCursorForCaret(int caret)
+    {
+        Debug.Assert(caret >= 0);
+
+        // Find the wrapped line containing the caret: the last line whose StartIndex is &lt;= caret. The boundary
+        // rule (a caret exactly at a line's StartIndex belongs to THAT line at column 0) mirrors the wrap's
+        // `isCursorPastCharacter = caret > textIndex` semantics at a line break (WordWrapping.cs).
+        int lo = 0, hi = WrappedLines.Count - 1, row = 0;
+        while (lo <= hi)
+        {
+            int mid = (lo + hi) / 2;
+            if (WrappedLines[mid].StartIndex <= caret)
+            {
+                row = mid;
+                lo = mid + 1;
+            }
+            else
+            {
+                hi = mid - 1;
+            }
+        }
+
+        // Column = count of non-control chars on the line before the caret. The only control char in wrapped
+        // content is the line-terminating '\n', which is always the last char of its line and so never appears
+        // strictly before the caret within the caret's own line - so this loop matches the wrap's per-char
+        // `cursorColumn++` exactly (surrogate halves and combining marks each count as one, as they do there).
+        var content = WrappedLines[row].Content;
+        int offset = caret - WrappedLines[row].StartIndex;
+        Debug.Assert(offset >= 0 && offset <= content.Length);
+        int column = 0;
+        for (int i = 0; i < offset; i++)
+        {
+            if (!char.IsControl(content[i]))
+            {
+                column++;
+            }
+        }
+
+        return new ConsoleCoordinate(row, column);
+    }
 }
 
 [DebuggerDisplay("{Content}")]

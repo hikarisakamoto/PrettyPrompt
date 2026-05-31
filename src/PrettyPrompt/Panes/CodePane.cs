@@ -32,6 +32,7 @@ internal class CodePane : IKeyPressHandler
     private int codeAreaWidth;
     private int codeAreaHeight;
     private WordWrappedText wordWrappedText;
+    private int lastWordWrapWidth;
     private CompletionPane completionPane = null!;
     private OverloadPane overloadPane = null!;
 
@@ -125,13 +126,40 @@ internal class CodePane : IKeyPressHandler
         MeasureConsole();
 
         Document = new Document();
-        Document.Changed += WordWrap;
+        Document.TextChanged += WordWrap;   // full re-wrap only when the text actually changes
+        Document.Changed += SyncCursor;     // every change (incl. caret-only moves): keep the 2-D cursor in sync
         selectionHandler = new SelectionKeyPressHandler(this);
         TabSpaces = new string(' ', configuration.TabSize);
 
         WordWrap();
 
-        void WordWrap() => wordWrappedText = Document.WrapEditableCharacters(CodeAreaWidth);
+        void WordWrap()
+        {
+            wordWrappedText = Document.WrapEditableCharacters(CodeAreaWidth);
+            lastWordWrapWidth = CodeAreaWidth;
+        }
+
+        // On a caret-only move (arrow keys, Home/End, etc.) the text is unchanged, so we skip the O(n) re-wrap
+        // and recompute just the 2-D cursor from the existing wrapped lines (see PERFORMANCE_PLAN.md Tier B1).
+        // On a text edit, WordWrap (subscribed to TextChanged, which StringBuilderWithCaret fires *before*
+        // Changed) has already re-wrapped and set the cursor, so this is a cheap redundant no-op. If the
+        // code-area width changed (terminal resize) the existing wrapped lines are stale, so fall back to a full
+        // re-wrap - matching the pre-Tier-B1 behavior where every Document change re-wrapped at the current width.
+        void SyncCursor()
+        {
+            if (CodeAreaWidth != lastWordWrapWidth)
+            {
+                WordWrap();
+                return;
+            }
+
+            var recomputed = wordWrappedText.GetCursorForCaret(Document.Caret);
+#if DEBUG
+            var fromFullWrap = Document.WrapEditableCharacters(CodeAreaWidth).Cursor;
+            Debug.Assert(recomputed.Equals(fromFullWrap), $"Caret-only cursor recompute ({recomputed}) disagrees with a full wrap ({fromFullWrap}) at caret {Document.Caret}.");
+#endif
+            wordWrappedText.Cursor = recomputed;
+        }
     }
 
     internal void Bind(CompletionPane completionPane, OverloadPane overloadPane)
