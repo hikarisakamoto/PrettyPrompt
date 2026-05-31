@@ -64,11 +64,11 @@ public class SystemConsole : IConsole
         }
     }
 
-    [DllImport("kernel32")]
+    [DllImport("kernel32", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool GetConsoleMode(IntPtr hConsoleHandle, out uint lpMode);
 
-    [DllImport("kernel32")]
+    [DllImport("kernel32", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool SetConsoleMode(IntPtr hConsoleHandle, uint dwMode);
 
