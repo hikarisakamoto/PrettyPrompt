@@ -5,6 +5,12 @@ using System.Threading.Tasks;
 using Xunit;
 using static System.ConsoleKey;
 
+// xUnit1069: these tests set a Timeout purely as a backstop against a pathological hang in the
+// fuzzed prompt loop. Prompt.ReadLineAsync() does not accept a CancellationToken, so there is no
+// call site to thread TestContext.Current.CancellationToken through; the analyzer's suggestion
+// can't be applied without a production API change.
+#pragma warning disable xUnit1069
+
 namespace PrettyPrompt.Tests;
 
 /// <summary>
