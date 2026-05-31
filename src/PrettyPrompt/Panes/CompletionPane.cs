@@ -96,28 +96,35 @@ internal class CompletionPane : IKeyPressHandler
 
             switch (key.ObjectPattern)
             {
-                case Home or (_, Home):
-                case End or (_, End):
-                case (Shift, LeftArrow or RightArrow or UpArrow or DownArrow or Home or End) or
+                case Home or (_, Home) or
+                     End or (_, End) or
+                     (Shift, LeftArrow or RightArrow or UpArrow or DownArrow or Home or End) or
                      (Control | Shift, LeftArrow or RightArrow or UpArrow or DownArrow or Home or End) or
                      (Control, A):
-                    await Close(cancellationToken).ConfigureAwait(false);
-                    return;
-                case LeftArrow or RightArrow:
-                    // mirror the document's grapheme-cluster-aware caret movement (see CodePane arrow handling)
-                    int caretNew = key.ConsoleKeyInfo.Key == LeftArrow
-                        ? codePane.Document.CalculateCaretIndexToLeft()
-                        : codePane.Document.CalculateCaretIndexToRight();
-                    if (caretNew < spanToReplace.Start || caretNew > spanToReplace.Start + spanToReplace.Length)
                     {
                         await Close(cancellationToken).ConfigureAwait(false);
                         return;
                     }
-                    break;
+                case LeftArrow or RightArrow or (Control, B) or (Control, F): // Ctrl+B/Ctrl+F are emacs char movement
+                    {
+                        // mirror the document's grapheme-cluster-aware caret movement (see CodePane arrow handling)
+                        bool movingLeft = key.ObjectPattern is LeftArrow or (Control, B);
+                        int caretNew = movingLeft
+                            ? codePane.Document.CalculateCaretIndexToLeft()
+                            : codePane.Document.CalculateCaretIndexToRight();
+                        if (caretNew < spanToReplace.Start || caretNew > spanToReplace.Start + spanToReplace.Length)
+                        {
+                            await Close(cancellationToken).ConfigureAwait(false);
+                            return;
+                        }
+                        break;
+                    }
                 case Escape:
-                    await Close(cancellationToken).ConfigureAwait(false);
-                    key.Handled = true;
-                    return;
+                    {
+                        await Close(cancellationToken).ConfigureAwait(false);
+                        key.Handled = true;
+                        return;
+                    }
                 default:
                     break;
             }
@@ -150,11 +157,11 @@ internal class CompletionPane : IKeyPressHandler
         //completion list is open and there are some items
         switch (key.ObjectPattern)
         {
-            case DownArrow:
+            case DownArrow or (Control, N): // Ctrl+N = next item (emacs)
                 await FilteredView.IncrementSelectedIndex(cancellationToken).ConfigureAwait(false);
                 key.Handled = true;
                 break;
-            case UpArrow:
+            case UpArrow or (Control, P): // Ctrl+P = previous item (emacs)
                 await FilteredView.DecrementSelectedIndex(cancellationToken).ConfigureAwait(false);
                 key.Handled = true;
                 break;

@@ -60,6 +60,28 @@ public class HistoryTests
     }
 
     [Fact]
+    public async Task ReadLine_WithHistory_CyclesWithCtrlPAndCtrlN()
+    {
+        // Ctrl+P / Ctrl+N are emacs aliases for the Up/Down history bindings
+        var console = ConsoleStub.NewConsole();
+        var prompt = new Prompt(console: console);
+
+        console.StubInput($"Hello World{Enter}");
+        await prompt.ReadLineAsync();
+
+        console.StubInput($"Howdy World{Enter}");
+        await prompt.ReadLineAsync();
+
+        console.StubInput($"How ya' doin world{Enter}");
+        await prompt.ReadLineAsync();
+
+        // Ctrl+P three times walks back to the oldest entry; Ctrl+N steps forward one.
+        console.StubInput($"{Control}{P}{Control}{P}{Control}{P}{Control}{N}{Enter}");
+        var result = await prompt.ReadLineAsync();
+        Assert.Equal("Howdy World", result.Text);
+    }
+
+    [Fact]
     public async Task ReadLine_WithHistory_DoNotSaveEmptyInput()
     {
         var console = ConsoleStub.NewConsole();

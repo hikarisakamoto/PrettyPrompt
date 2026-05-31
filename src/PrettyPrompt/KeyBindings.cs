@@ -34,8 +34,8 @@ public class KeyBindings
         TriggerCompletionList = Get(triggerCompletionList, new KeyPressPattern(Control, Spacebar));
         NewLine = Get(newLine, new KeyPressPattern(Shift, Enter), new KeyPressPattern(Alt, Enter));
         SubmitPrompt = Get(submitPrompt, new(Enter), new(Control, Enter), new(Control | Alt, Enter));
-        HistoryPrevious = Get(historyPrevious, new KeyPressPattern(UpArrow));
-        HistoryNext = Get(historyNext, new KeyPressPattern(DownArrow));
+        HistoryPrevious = Get(historyPrevious, new KeyPressPattern(UpArrow), new KeyPressPattern(Control, P)); // Ctrl+P is the emacs binding
+        HistoryNext = Get(historyNext, new KeyPressPattern(DownArrow), new KeyPressPattern(Control, N)); // Ctrl+N is the emacs binding
         TriggerOverloadList = triggerOverloadList;
 
         static KeyPressPatterns Get(KeyPressPatterns patterns, params KeyPressPattern[] defaultPatterns)
