@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+    <File Path="Architecture.md" />
+    <File Path="nuget.config" />
+    <File Path="README.md" />
+  </Folder>
+  <Project Path="examples/PrettyPrompt.Examples.FruitPrompt/PrettyPrompt.Examples.FruitPrompt.csproj" />
+  <Project Path="src/PrettyPrompt/PrettyPrompt.csproj" />
+  <Project Path="tests/PrettyPrompt.Benchmarks/PrettyPrompt.Benchmarks.csproj" />
+  <Project Path="tests/PrettyPrompt.IntegrationTests/PrettyPrompt.IntegrationTests.csproj" />
+  <Project Path="tests/PrettyPrompt.Tests/PrettyPrompt.Tests.csproj" />
+</Solution>
