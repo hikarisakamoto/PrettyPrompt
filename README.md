@@ -42,11 +42,12 @@ A simple read-eval-print-loop looks like this:
 
 ```csharp
 
-var prompt = new Prompt();
+var prompt = new Prompt(
+    configuration: new PromptConfiguration(prompt: "> "));
 
 while (true)
 {
-    var response = await prompt.ReadLineAsync("> ");
+    var response = await prompt.ReadLineAsync();
     if (response.IsSuccess) // false if user cancels, i.e. ctrl-c
     {
         if (response.Text == "exit") break;
@@ -66,4 +67,4 @@ dotnet example FruitPrompt
 
 ## Building from source
 
-This application targets modern .NET (i.e. not .NET Framework), and can be built with either Visual Studio or the normal `dotnet build` command line tool.
+This application targets .NET 10, and can be built with either Visual Studio or the normal `dotnet build` command line tool.
