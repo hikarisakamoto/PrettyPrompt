@@ -85,8 +85,16 @@ internal static class IncrementalRendering
             MoveCursorIfRequired(diff, previousCoordinate, cellCoordinate);
             previousCoordinate = cellCoordinate;
 
+            // A newline cell paints no glyph at its own column, so - exactly like a null/erased cell - we have to
+            // emit a clearing space there to overwrite whatever character was rendered at that column before, and
+            // only then the newline to move down. The newline's OWN formatting is irrelevant (it draws nothing),
+            // and a multi-line string literal's highlight span legitimately colors the newline cell. Gating the
+            // clear on the cell's formatting being default (as we do for real characters) skipped a colored
+            // newline and left the old character on screen as a "ghost" See https://github.com/waf/CSharpRepl/issues/411.
+            bool currentCellIsNewLine = currentCell is not null && currentCell.Text == "\n";
+
             // handle when we're erasing characters/formatting from the previously rendered screen.
-            if (currentCell is null || currentCell.Formatting.IsDefault)
+            if (currentCell is null || currentCell.Formatting.IsDefault || currentCellIsNewLine)
             {
                 if (!currentFormatRun.IsDefault)
                 {
@@ -94,7 +102,7 @@ internal static class IncrementalRendering
                     currentFormatRun = ConsoleFormat.None;
                 }
 
-                if (currentCell?.Text is null || currentCell.Text == "\n")
+                if (currentCell?.Text is null || currentCellIsNewLine)
                 {
                     diff.Append(' ');
                     UpdateCoordinateFromCursorMove(previousScreen, ansiCoordinate, diff, ref previousCoordinate, currentCell);
@@ -103,6 +111,11 @@ internal static class IncrementalRendering
                     {
                         continue;
                     }
+
+                    // The clearing space is written; now emit the newline itself to move the cursor down.
+                    diff.Append(currentCell.Text);
+                    UpdateCoordinateFromNewLine(ref previousCoordinate);
+                    continue;
                 }
             }
 
@@ -123,17 +136,10 @@ internal static class IncrementalRendering
                 diff.Append(currentCell.Text);
             }
 
-            // writing to the console will automatically move the cursor.
-            // update our internal tracking so we calculate the least
-            // amount of movement required for the next character.
-            if (currentCell.Text == "\n")
-            {
-                UpdateCoordinateFromNewLine(ref previousCoordinate);
-            }
-            else
-            {
-                UpdateCoordinateFromCursorMove(currentScreen, ansiCoordinate, diff, ref previousCoordinate, currentCell);
-            }
+            // writing to the console will automatically move the cursor. update our internal tracking so we
+            // calculate the least amount of movement required for the next character. (Newline cells never reach
+            // here - they're written and their coordinate advanced in the erase block above and then `continue`.)
+            UpdateCoordinateFromCursorMove(currentScreen, ansiCoordinate, diff, ref previousCoordinate, currentCell);
         }
 
         if (!currentFormatRun.IsDefault)

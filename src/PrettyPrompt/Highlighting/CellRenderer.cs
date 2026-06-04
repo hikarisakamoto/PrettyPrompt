@@ -54,38 +54,51 @@ internal static class CellRenderer
         for (int lineIndex = startLine; lineIndex < endLine; lineIndex++)
         {
             WrappedLine line = lines[lineIndex];
-            int lineFullWidthCharacterOffset = 0;
+            // characterPosition coordinates are UTF-16 document offsets (the same units the highlight spans and
+            // selection columns use). A cell, by contrast, is a display column. These two differ whenever a
+            // grapheme cluster is not exactly one char wide AND one column wide:
+            //   CJK '界'      -> 1 char,  2 columns
+            //   emoji '🙃'     -> 2 chars (surrogate pair), 2 columns
+            //   combining 'é' -> 2 chars, 1 column
+            // so we track the cluster's UTF-16 length (lineCharOffset) independently of the cell index.
+            int lineCharOffset = 0;           // UTF-16 offset within the line of the current cell's cluster
+            int currentClusterCharLength = 0; // UTF-16 length of that cluster, captured from its main cell
             var row = new Row(line.Content);
             for (int cellIndex = 0; cellIndex < row.Length; cellIndex++)
             {
                 var cell = row[cellIndex];
-                if (cell.IsContinuationOfPreviousCharacter)
-                    lineFullWidthCharacterOffset++;
+                // A main (non-continuation) cell starts a new cluster: advance past the previous cluster's chars.
+                // Continuation cells belong to the same cluster as their main cell and share its char offset.
+                if (!cell.IsContinuationOfPreviousCharacter)
+                {
+                    lineCharOffset += currentClusterCharLength;
+                    currentClusterCharLength = cell.Text?.Length ?? 1;
+                }
+                int characterPosition = line.StartIndex + lineCharOffset;
 
-                // syntax highlight wrapped lines
+                // syntax highlight wrapped lines (a highlight carried over from the previous line)
                 if (currentHighlight.TryGet(out var previousLineHighlight) &&
                     cellIndex == 0)
                 {
-                    currentHighlight = HighlightSpan(previousLineHighlight, row, cellIndex, previousLineHighlight.Start - line.StartIndex);
+                    currentHighlight = HighlightSpan(previousLineHighlight, row, cellIndex, characterPosition);
                 }
 
                 // get current syntaxt highlight start
-                int characterPosition = line.StartIndex + cellIndex - lineFullWidthCharacterOffset;
                 currentHighlight ??= highlightsLookup.TryGetValue(characterPosition, out var lookupHighlight) ? lookupHighlight : null;
 
                 // syntax highlight based on start
                 if (currentHighlight.TryGet(out var highlight) &&
                     highlight.Contains(characterPosition))
                 {
-                    currentHighlight = HighlightSpan(highlight, row, cellIndex, cellIndex);
+                    currentHighlight = HighlightSpan(highlight, row, cellIndex, characterPosition);
                 }
 
                 // if there's text selected, invert colors to represent the highlight of the selected text.
-                if (selectionStart.Equals(lineIndex, cellIndex - lineFullWidthCharacterOffset)) //start is inclusive
+                if (selectionStart.Equals(lineIndex, lineCharOffset)) //start is inclusive
                 {
                     selectionHighlight = true;
                 }
-                if (selectionEnd.Equals(lineIndex, cellIndex - lineFullWidthCharacterOffset)) //end is exclusive
+                if (selectionEnd.Equals(lineIndex, lineCharOffset)) //end is exclusive
                 {
                     selectionHighlight = false;
                 }
@@ -144,14 +157,22 @@ internal static class CellRenderer
         return seed;
     }
 
-    private static FormatSpan? HighlightSpan(FormatSpan currentHighlight, Row row, int cellIndex, int endPosition)
+    /// <summary>
+    /// Colors the cells of <paramref name="row"/> from <paramref name="cellIndex"/> forward that fall within
+    /// <paramref name="currentHighlight"/>, stopping once the running UTF-16 document offset reaches the
+    /// highlight's end (or the row ends). <paramref name="charOffset"/> is the UTF-16 offset of the cluster at
+    /// <paramref name="cellIndex"/>.
+    /// </summary>
+    private static FormatSpan? HighlightSpan(FormatSpan currentHighlight, Row row, int cellIndex, int charOffset)
     {
-        var highlightedFullWidthOffset = 0;
         int i;
-        for (i = cellIndex; i < Math.Min(endPosition + currentHighlight.Length + highlightedFullWidthOffset, row.Length); i++)
+        for (i = cellIndex; i < row.Length && charOffset < currentHighlight.End; i++)
         {
-            highlightedFullWidthOffset += row[i].ElementWidth - 1;
             row[i].Formatting = currentHighlight.Formatting;
+            if (!row[i].IsContinuationOfPreviousCharacter)
+            {
+                charOffset += row[i].Text?.Length ?? 1;
+            }
         }
         if (i != row.Length)
         {

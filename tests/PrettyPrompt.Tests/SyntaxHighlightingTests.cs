@@ -106,4 +106,31 @@ public class SyntaxHighlightingTests
             str => str.Contains("ado" + Reset)
         );
     }
+
+    [Theory]
+    [InlineData("var x = \"abcdefg🙃hijklmnop\";")] // 🙃 (U+1F643): surrogate pair -> 2 chars, 2 columns
+    [InlineData("var x = \"ábcdefghij\";")]    // a + combining acute -> 2 chars, 1 column
+    public void ApplyColorToCharacters_HighlightEndingAfterMultiCharCluster_DoesNotBleedOntoNextCharacter(string text)
+    {
+        // Highlight spans use UTF-16 offsets, so this string-literal span ends exactly before the trailing ';'.
+        // When a grapheme cluster inside the string spans more than one UTF-16 char (a surrogate-pair emoji, or a
+        // base char + combining mark), the renderer must measure the span end in chars - not cells/clusters - or
+        // the string color bleeds onto the ';'. Regression test for the CSharpRepl emoji highlighting bug.
+        int stringStart = text.IndexOf('"');
+        int stringLength = text.LastIndexOf('"') - stringStart + 1;
+        var highlight = new FormatSpan(stringStart, stringLength, AnsiColor.Red);
+
+        var rows = CellRenderer.ApplyColorToCharacters(new[] { highlight }, text, textWidth: 200);
+        var row = rows[0];
+
+        int semicolon = -1;
+        for (int i = 0; i < row.Length; i++)
+        {
+            if (row[i].Text == ";") { semicolon = i; break; }
+        }
+        Assert.True(semicolon > 0, "expected to find a ';' cell");
+
+        Assert.Equal(AnsiColor.Red, row[semicolon - 1].Formatting.Foreground); // closing '"' is highlighted
+        Assert.Null(row[semicolon].Formatting.Foreground);                     // the ';' must NOT be (the bug)
+    }
 }
