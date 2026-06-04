@@ -1,59 +1,54 @@
-# publishes to nuget if the version number in PrettyPrompt.csproj changes
-
-name: publish to nuget
+# On pushing a tag like v5.0.1, publish to nuget.org and create a GitHub release.
+# Use publish-release.ps1 to push a release.
+name: release
 
 on:
   push:
-    branches:
-    - main
-    
+    tags:
+    - "v[0-9]+.*" # not a regex! ".*" means a period followed by any character https://docs.github.com/en/actions/reference/workflow-syntax-for-github-actions#filter-pattern-cheat-sheet
+
+permissions:
+  contents: write # needed to create the GitHub release
+
 jobs:
   build:
 
     runs-on: windows-latest
 
     steps:
-    - uses: actions/checkout@v1
-    
-    - name: Check for new version
-      id: CheckReleaseRequired
-      shell: pwsh
-      run: |
-        $publishedversions = (Find-Package -AllVersions -AllowPrereleaseVersions -Name "PrettyPrompt").Version
-        echo "Found published versions: $publishedversions"
-        if ($publishedversions.Count -gt 0) {
-            $csproj = [xml](Get-Content ./src/PrettyPrompt/PrettyPrompt.csproj)
-            $localversion = $csproj.Project.PropertyGroup.Version[0]
-            echo "Version in the repository is $localversion"
-            $isReleaseRequired = (-not $publishedversions.Contains($localversion)).ToString().ToLower()
-            echo "Release required: $isReleaseRequired"
-            echo "::set-output name=LOCAL_VERSION::v$localversion"
-            echo "::set-output name=IS_RELEASE_REQUIRED::$isReleaseRequired"
-        }
-      
-    - name: Install Dotnet
-      uses: actions/setup-dotnet@v1
-      if: steps.CheckReleaseRequired.outputs.IS_RELEASE_REQUIRED == 'true' 
-      with:
-        dotnet-version: | 
-          10.0.x
+    - uses: actions/checkout@v4
 
-    - name: Create NuGet Package
-      if: steps.CheckReleaseRequired.outputs.IS_RELEASE_REQUIRED == 'true' 
+    - name: Install Dotnet
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '10.0.x'
+
+    - name: Dotnet Installation Info
+      run: dotnet --info
+
+    - name: Pack
       run: dotnet pack ./src/PrettyPrompt/PrettyPrompt.csproj -c Release -p:ContinuousIntegrationBuild=true
 
     - name: Publish to NuGet
-      if: steps.CheckReleaseRequired.outputs.IS_RELEASE_REQUIRED == 'true' 
-      run: dotnet nuget push --skip-duplicate --api-key ${{secrets.NUGET_API_KEY}} --source 'https://api.nuget.org/v3/index.json' .\src\PrettyPrompt\bin\Release\PrettyPrompt.*.nupkg
+      run: dotnet nuget push --skip-duplicate --api-key ${{ secrets.NUGET_API_KEY }} --source 'https://api.nuget.org/v3/index.json' .\src\PrettyPrompt\bin\Release\PrettyPrompt.*.nupkg
 
-    - name: Create Git Tag
-      if: steps.CheckReleaseRequired.outputs.IS_RELEASE_REQUIRED == 'true' 
-      uses: actions/github-script@v6
-      with:
-        script: |
-          github.rest.git.createRef({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            ref: 'refs/tags/${{ steps.CheckReleaseRequired.outputs.LOCAL_VERSION }}',
-            sha: context.sha
-          }) 
+    # Pull the notes for this version straight out of CHANGELOG.md so the GitHub release
+    # mirrors what's already curated there (CHANGELOG.md is the single source of truth).
+    - name: Extract release notes from CHANGELOG
+      shell: pwsh
+      run: |
+        $version = '${{ github.ref_name }}'.TrimStart('v')
+        $changelog = Get-Content -Raw CHANGELOG.md
+        $escaped = [regex]::Escape($version)
+        $match = [regex]::Match($changelog, "(?ms)^# Release $escaped[ \t]*\r?\n(.*?)(?=\r?\n# Release |\z)")
+        if (-not $match.Success) {
+            Write-Error "Could not find a '# Release $version' section in CHANGELOG.md"
+            exit 1
+        }
+        Set-Content -Path release-notes.md -Value $match.Groups[1].Value.Trim()
+
+    - name: Create GitHub release
+      shell: pwsh
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: gh release create "${{ github.ref_name }}" --title "${{ github.ref_name }}" --notes-file release-notes.md --verify-tag
