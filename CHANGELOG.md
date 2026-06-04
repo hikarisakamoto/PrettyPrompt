@@ -1,3 +1,7 @@
+# Release 5.0.1
+
+- Syntax highlighting improvements: better unicode support and highlighting-across-newline handling
+
 # Release 5.0.0
 
 - Breaking change: Target .NET 10 ([#280](https://github.com/waf/PrettyPrompt/pull/280)).
