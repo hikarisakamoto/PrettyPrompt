@@ -47,11 +47,12 @@ internal static class WordWrapping
                 bool isCursorPastCharacter = caret > textIndex;
 
                 Debug.Assert(character != '\t', "tabs should be replaced by spaces");
-                // Zero-width scalars (combining marks, zero-width joiners, variation selectors, etc.) are
-                // legitimate input - e.g. when pasting an emoji such as 🤦🏼‍♂️. They contribute no display
-                // width (so they don't grow the line or trigger wrapping), but they ARE part of the
-                // string/line content, so they must still advance textIndex (the string index) and the
-                // caret column just like any other character. See issue #270.
+                // Zero-width scalars (combining marks, zero-width joiners, etc.) are legitimate input - e.g.
+                // when pasting an emoji such as 🤦🏼‍♂️. They contribute no display width (so they don't grow the
+                // line or trigger wrapping), but they ARE part of the string/line content, so they must still
+                // advance textIndex (the string index) and the caret column just like any other character.
+                // (The emoji variation selector U+FE0F is the exception: GetWidth gives it one column, because
+                // it promotes its base to a 2-column emoji - see UnicodeWidth.) See issue #270.
                 int unicodeWidth = UnicodeWidth.GetWidth(character);
                 currentLineLength += unicodeWidth;
                 textIndex++;
