@@ -67,6 +67,24 @@ public class WordWrappingTests
     }
 
     [Fact]
+    public void WrapEditableCharacters_EmojiVariationSelectorAtBoundary_OccupiesTwoColumns()
+    {
+        // ⚠️ (U+26A0 U+FE0F) is a 2-column emoji. With width 6, "abcd" (4 cols) + ⚠️ (2 cols) must exactly
+        // fill the first line - the selector is NOT zero-width here - so "efgh" wraps to the next line.
+        var text = "abcd⚠️efgh";
+        var wrapped = WordWrapping.WrapEditableCharacters(new StringBuilder(text), caret: 0, width: 6);
+
+        Assert.Equal(
+            new[]
+            {
+                new WrappedLine(0, "abcd⚠️"),
+                new WrappedLine(6, "efgh"),
+            },
+            wrapped.WrappedLines
+        );
+    }
+
+    [Fact]
     public void WrapWords_GivenLongText_WrapsWords()
     {
         var text = "Here is some text that should be wrapped word by word. supercalifragilisticexpialidocious";

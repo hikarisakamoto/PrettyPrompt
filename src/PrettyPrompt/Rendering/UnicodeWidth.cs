@@ -38,6 +38,9 @@ public static class UnicodeWidth
     {
         if (character == '\n') return 1; // PrettyPrompt: treat newline as occupying a single column.
         if (char.IsSurrogate(character)) return 1; // half of a surrogate pair; the pair sums to the scalar's width.
+        // U+FE0F (emoji variation selector) carries the column its base gains from emoji presentation - e.g.
+        // ⚠ (1 col) + VS16 = a 2-col emoji - keeping this per-char sum equal to GetGraphemeClusterWidth.
+        if (character == (char)0xFE0F) return 1;
         return Clamp(UnicodeCalculator.GetWidth(character));
     }
 
@@ -70,6 +73,10 @@ public static class UnicodeWidth
             return 1; // ill-formed (e.g. a lone surrogate); be defensive and reserve a single column.
         }
         if (baseRune.Value == '\n') return 1;
+        // U+FE0F (emoji variation selector) forces emoji presentation, which is 2 columns even for a base
+        // that defaults to 1 - e.g. ⚠ (U+26A0) is 1 column but ⚠️ is a 2-column emoji; wcwidth misses this.
+        // The length check skips a lone, base-less selector (no width of its own).
+        if (cluster.Length > 1 && cluster.Contains((char)0xFE0F)) return 2;
         return Clamp(UnicodeCalculator.GetWidth(baseRune));
     }
 

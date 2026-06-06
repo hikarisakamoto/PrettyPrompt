@@ -37,6 +37,14 @@ public class UnicodeWidthTests
 
     // narrow supplementary glyph that the old code mis-sized (issue called this out): a playing card is 1
     [InlineData("\U0001F0A1", 1)]                                 // 🂡 playing card ace of spades
+
+    // U+FE0F (emoji variation selector) promotes a default-text base into a two-column emoji. The bare base
+    // is one column, but base + VS16 renders as a 2-column emoji in terminals, so the caret/cursor must size
+    // it as two columns to stay aligned past it. See https://github.com/waf/PrettyPrompt/issues/270.
+    [InlineData("⚠", 1)]                                     // ⚠ warning sign, text presentation = 1 column
+    [InlineData("⚠️", 2)]                               // ⚠️ warning sign + VS16, emoji presentation = 2 columns
+    [InlineData("abc⚠️def", 8)]                         // surrounded: abc (3) + ⚠️ (2) + def (3)
+    [InlineData("ℹ️", 2)]                               // ℹ️ information source + VS16
     public void GetWidth_ReturnsExpectedDisplayWidth(string text, int expectedWidth)
     {
         Assert.Equal(expectedWidth, UnicodeWidth.GetWidth(text));
@@ -50,6 +58,8 @@ public class UnicodeWidthTests
     [InlineData("\u79B0\U000E0100", 2)]                           // 禰󠄀
     [InlineData("a", 1)]                                          // narrow
     [InlineData("\u4E66", 2)]                                     // 书 wide
+    [InlineData("⚠", 1)]                                        // ⚠ warning sign on its own = text presentation, 1 column
+    [InlineData("⚠️", 2)]                                        // ⚠️ warning sign + VS16 = emoji presentation, 2 columns
     public void GetGraphemeClusterWidth_IsCappedAtTwo(string cluster, int expectedWidth)
     {
         Assert.Equal(expectedWidth, UnicodeWidth.GetGraphemeClusterWidth(cluster));
