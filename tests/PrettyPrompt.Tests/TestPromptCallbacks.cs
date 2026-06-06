@@ -12,6 +12,7 @@ namespace PrettyPrompt.Tests;
 internal delegate Task<TextSpan> SpanToReplaceByCompletionCallbackAsync(string text, int caret);
 internal delegate Task<IReadOnlyList<CompletionItem>> CompletionCallbackAsync(string text, int caret, TextSpan spanToBeReplaced);
 internal delegate Task<bool> OpenCompletionWindowCallbackAsync(string text, int caret);
+internal delegate Task CompletionWindowStateChangedCallbackAsync(string text, int caret);
 internal delegate Task<IReadOnlyCollection<FormatSpan>> HighlightCallbackAsync(string text);
 internal delegate Task<KeyPress> TransformKeyPressAsyncCallbackAsync(string text, int caret, KeyPress keyPress);
 internal delegate Task<(IReadOnlyList<OverloadItem>, int ArgumentIndex)> GetOverloadsCallbackAsync(string text, int caret);
@@ -23,6 +24,8 @@ internal class TestPromptCallbacks : PromptCallbacks
     public SpanToReplaceByCompletionCallbackAsync? SpanToReplaceByCompletionCallback { get; set; }
     public CompletionCallbackAsync? CompletionCallback { get; set; }
     public OpenCompletionWindowCallbackAsync? OpenCompletionWindowCallback { get; set; }
+    public CompletionWindowStateChangedCallbackAsync? CompletionWindowOpenedCallback { get; set; }
+    public CompletionWindowStateChangedCallbackAsync? CompletionWindowClosedCallback { get; set; }
     public HighlightCallbackAsync? HighlightCallback { get; set; }
     public TransformKeyPressAsyncCallbackAsync? TransformKeyPressCallback { get; set; }
     public GetOverloadsCallbackAsync? GetOverloadsCallback { get; set; }
@@ -56,6 +59,22 @@ internal class TestPromptCallbacks : PromptCallbacks
             OpenCompletionWindowCallback is null ?
             base.ShouldOpenCompletionWindowAsync(text, caret, key, cancellationToken) :
             OpenCompletionWindowCallback(text, caret);
+    }
+
+    protected override Task CompletionWindowOpenedAsync(string text, int caret, CancellationToken cancellationToken)
+    {
+        return
+            CompletionWindowOpenedCallback is null ?
+            base.CompletionWindowOpenedAsync(text, caret, cancellationToken) :
+            CompletionWindowOpenedCallback(text, caret);
+    }
+
+    protected override Task CompletionWindowClosedAsync(string text, int caret, CancellationToken cancellationToken)
+    {
+        return
+            CompletionWindowClosedCallback is null ?
+            base.CompletionWindowClosedAsync(text, caret, cancellationToken) :
+            CompletionWindowClosedCallback(text, caret);
     }
 
     protected override Task<IReadOnlyCollection<FormatSpan>> HighlightCallbackAsync(string text, CancellationToken cancellationToken)

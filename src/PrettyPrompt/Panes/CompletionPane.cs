@@ -69,16 +69,26 @@ internal class CompletionPane : IKeyPressHandler
         FilteredView.SelectedItemChanged += SelectedItemChanged;
     }
 
-    private void Open()
+    private async Task Open(CancellationToken cancellationToken)
     {
+        bool wasOpen = IsOpen;
         this.IsOpen = true;
         this.allCompletions = Array.Empty<CompletionItem>();
+        if (!wasOpen)
+        {
+            await promptCallbacks.CompletionWindowOpenedAsync(codePane.Document.GetText(), codePane.Document.Caret, cancellationToken).ConfigureAwait(false);
+        }
     }
 
     private async Task Close(CancellationToken cancellationToken)
     {
+        bool wasOpen = IsOpen;
         IsOpen = false;
         await FilteredView.Clear(cancellationToken).ConfigureAwait(false);
+        if (wasOpen)
+        {
+            await promptCallbacks.CompletionWindowClosedAsync(codePane.Document.GetText(), codePane.Document.Caret, cancellationToken).ConfigureAwait(false);
+        }
     }
 
     async Task IKeyPressHandler.OnKeyDown(KeyPress key, CancellationToken cancellationToken)
@@ -135,7 +145,7 @@ internal class CompletionPane : IKeyPressHandler
             {
                 if (codePane.Selection is null)
                 {
-                    Open();
+                    await Open(cancellationToken).ConfigureAwait(false);
                 }
                 key.Handled = true;
             }
@@ -148,7 +158,7 @@ internal class CompletionPane : IKeyPressHandler
             if (completionListTriggered)
             {
                 await Close(cancellationToken).ConfigureAwait(false);
-                Open();
+                await Open(cancellationToken).ConfigureAwait(false);
                 key.Handled = true;
             }
             return;
@@ -197,7 +207,7 @@ internal class CompletionPane : IKeyPressHandler
                 !completionListTriggeredOnKeyDown &&
                 await promptCallbacks.ShouldOpenCompletionWindowAsync(codePane.Document.GetText(), codePane.Document.Caret, key, cancellationToken).ConfigureAwait(false))
             {
-                Open();
+                await Open(cancellationToken).ConfigureAwait(false);
             }
         }
 
