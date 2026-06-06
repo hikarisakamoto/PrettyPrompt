@@ -92,6 +92,22 @@ public interface IPromptCallbacks
     Task<bool> ShouldOpenCompletionWindowAsync(string text, int caret, KeyPress keyPress, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Invoked after the completion window has been opened.
+    /// </summary>
+    /// <param name="text">The user's input text</param>
+    /// <param name="caret">The index of the text caret in the input text</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    Task CompletionWindowOpenedAsync(string text, int caret, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Invoked after the completion window has been closed.
+    /// </summary>
+    /// <param name="text">The user's input text</param>
+    /// <param name="caret">The index of the text caret in the input text</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    Task CompletionWindowClosedAsync(string text, int caret, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Optionaly transforms key presses to another ones.
     /// </summary>
     /// <param name="text">The user's input text</param>
@@ -182,6 +198,20 @@ public class PromptCallbacks : IPromptCallbacks
         Debug.Assert(caret >= 0 && caret <= text.Length);
 
         return ShouldOpenCompletionWindowAsync(text, caret, keyPress, cancellationToken);
+    }
+
+    Task IPromptCallbacks.CompletionWindowOpenedAsync(string text, int caret, CancellationToken cancellationToken)
+    {
+        Debug.Assert(caret >= 0 && caret <= text.Length);
+
+        return CompletionWindowOpenedAsync(text, caret, cancellationToken);
+    }
+
+    Task IPromptCallbacks.CompletionWindowClosedAsync(string text, int caret, CancellationToken cancellationToken)
+    {
+        Debug.Assert(caret >= 0 && caret <= text.Length);
+
+        return CompletionWindowClosedAsync(text, caret, cancellationToken);
     }
 
     Task<KeyPress> IPromptCallbacks.TransformKeyPressAsync(string text, int caret, KeyPress keyPress, CancellationToken cancellationToken)
@@ -283,6 +313,14 @@ public class PromptCallbacks : IPromptCallbacks
         // open when we're starting a new "word" in the prompt.
         return Task.FromResult(caret - 2 >= 0 && char.IsWhiteSpace(text[caret - 2]) && char.IsLetter(text[caret - 1]));
     }
+
+    /// <inheritdoc cref="IPromptCallbacks.CompletionWindowOpenedAsync"/>
+    protected virtual Task CompletionWindowOpenedAsync(string text, int caret, CancellationToken cancellationToken)
+        => Task.CompletedTask;
+
+    /// <inheritdoc cref="IPromptCallbacks.CompletionWindowClosedAsync"/>
+    protected virtual Task CompletionWindowClosedAsync(string text, int caret, CancellationToken cancellationToken)
+        => Task.CompletedTask;
 
     /// <inheritdoc cref="IPromptCallbacks.TransformKeyPressAsync(string, int, KeyPress, CancellationToken)"/>
     protected virtual Task<KeyPress> TransformKeyPressAsync(string text, int caret, KeyPress keyPress, CancellationToken cancellationToken)

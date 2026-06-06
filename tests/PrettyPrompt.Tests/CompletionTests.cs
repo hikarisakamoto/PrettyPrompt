@@ -113,6 +113,30 @@ public class CompletionTests
     }
 
     [Fact]
+    public async Task ReadLine_CompletionMenu_InvokesOpenedAndClosedCallbacks()
+    {
+        var console = ConsoleStub.NewConsole();
+        int openedCount = 0;
+        int closedCount = 0;
+        var callbacks = new TestPromptCallbacks
+        {
+            CompletionCallback = new CompletionTestData().CompletionHandlerAsync,
+            CompletionWindowOpenedCallback = (_, _) => { openedCount++; return Task.CompletedTask; },
+            CompletionWindowClosedCallback = (_, _) => { closedCount++; return Task.CompletedTask; },
+        };
+        var prompt = new Prompt(callbacks: callbacks, console: console);
+
+        // typing 'A' auto-opens the completion menu, Escape closes it.
+        console.StubInput($"A{Escape}{Enter}");
+        var result = await prompt.ReadLineAsync();
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("A", result.Text);
+        Assert.Equal(1, openedCount);
+        Assert.Equal(1, closedCount);
+    }
+
+    [Fact]
     public async Task ReadLine_CompletionMenu_Scrolls()
     {
         var console = ConsoleStub.NewConsole();
