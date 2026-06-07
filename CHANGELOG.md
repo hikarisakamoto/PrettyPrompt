@@ -1,3 +1,10 @@
+# Release 5.0.2
+
+- Add `CompletionWindowOpenedAsync` and `CompletionWindowClosedAsync` callbacks to `PromptCallbacks`, invoked when the completion window opens and closes ([#293](https://github.com/waf/PrettyPrompt/pull/293)).
+- Unicode handling improvements:
+    - Handle variant selector 16 (VS16), so the preceding character is measured as a full-width emoji ([#292](https://github.com/waf/PrettyPrompt/pull/292)).
+    - Handle spacing grapheme extenders U+FF9E–U+FF9F (halfwidth katakana voiced sound marks) ([#294](https://github.com/waf/PrettyPrompt/pull/294)).
+
 # Release 5.0.1
 
 - Syntax highlighting improvements: better unicode support and highlighting-across-newline handling
