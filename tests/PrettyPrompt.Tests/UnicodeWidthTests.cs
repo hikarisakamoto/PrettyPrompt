@@ -45,6 +45,17 @@ public class UnicodeWidthTests
     [InlineData("⚠️", 2)]                               // ⚠️ warning sign + VS16, emoji presentation = 2 columns
     [InlineData("abc⚠️def", 8)]                         // surrounded: abc (3) + ⚠️ (2) + def (3)
     [InlineData("ℹ️", 2)]                               // ℹ️ information source + VS16
+
+    // Halfwidth katakana voiced/semi-voiced sound marks (U+FF9E ﾞ, U+FF9F ﾟ) are spacing grapheme EXTENDERS:
+    // StringInfo clusters each with the preceding kana, but - unlike a zero-width combining mark that overlays
+    // its base - each renders in its own halfwidth cell, so a kana+mark cluster is two columns. The per-char
+    // GetWidth path already counts these (wcwidth gives them 1); the cluster path must match.
+    // See https://github.com/microsoft/terminal/issues/18087 and https://github.com/waf/PrettyPrompt/issues/270.
+    [InlineData("ﾊﾟｸﾞ", 4)]  // ﾊﾟｸﾞ = パグ ("pug" in halfwidth katakana): 4 columns, not 2
+    [InlineData("ﾊﾟ", 2)]              // ﾊﾟ one kana + semi-voiced sound mark (U+FF9F) cluster = 2 columns
+    [InlineData("ｸﾞ", 2)]              // ｸﾞ one kana + voiced sound mark (U+FF9E) cluster = 2 columns
+    [InlineData("ﾞ", 1)]                    // a lone voiced sound mark is its own one-column cluster
+    [InlineData("aﾊﾟb", 4)]            // surrounded: a (1) + ﾊﾟ (2) + b (1)
     public void GetWidth_ReturnsExpectedDisplayWidth(string text, int expectedWidth)
     {
         Assert.Equal(expectedWidth, UnicodeWidth.GetWidth(text));
@@ -60,6 +71,11 @@ public class UnicodeWidthTests
     [InlineData("\u4E66", 2)]                                     // 书 wide
     [InlineData("⚠", 1)]                                        // ⚠ warning sign on its own = text presentation, 1 column
     [InlineData("⚠️", 2)]                                        // ⚠️ warning sign + VS16 = emoji presentation, 2 columns
+    // halfwidth kana + halfwidth (semi-)voiced sound mark: the mark is a spacing extender, not a zero-width
+    // combining mark, so it adds its own column - see microsoft/terminal#18087.
+    [InlineData("ﾊﾟ", 2)]                                       // ﾊﾟ = U+FF8A + semi-voiced sound mark U+FF9F
+    [InlineData("ｸﾞ", 2)]                                       // ｸﾞ = U+FF78 + voiced sound mark U+FF9E
+    [InlineData("ﾞ", 1)]                                          // a lone halfwidth voiced sound mark = 1 column
     public void GetGraphemeClusterWidth_IsCappedAtTwo(string cluster, int expectedWidth)
     {
         Assert.Equal(expectedWidth, UnicodeWidth.GetGraphemeClusterWidth(cluster));

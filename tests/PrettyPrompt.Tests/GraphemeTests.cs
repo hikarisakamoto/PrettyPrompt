@@ -41,4 +41,24 @@ public class GraphemeTests
     [InlineData(9, 9)]
     public void RoundDownToBoundary_SnapsMidClusterIndices(int index, int expected)
         => Assert.Equal(expected, Grapheme.RoundDownToBoundary(Text, index));
+
+    // "ﾊﾟｸﾞ" = パグ ("pug") in halfwidth katakana = U+FF8A U+FF9F U+FF78 U+FF9E. The voiced / semi-voiced
+    // sound marks (U+FF9E/U+FF9F) are grapheme extenders, so each kana+mark pair is ONE cluster: the caret
+    // steps over a pair as a single editing unit (it never lands between a kana and its mark), even though
+    // each pair displays as two columns. See https://github.com/waf/PrettyPrompt/issues/270.
+    private const string Pug = "ﾊﾟｸﾞ";
+
+    [Theory]
+    [InlineData(0, 2)] // past ﾊﾟ (both chars of the first cluster)
+    [InlineData(2, 4)] // past ｸﾞ
+    [InlineData(4, 4)] // clamped at end
+    public void NextBoundary_TreatsKanaPlusSoundMarkAsOneCluster(int index, int expected)
+        => Assert.Equal(expected, Grapheme.NextBoundary(Pug, index));
+
+    [Theory]
+    [InlineData(4, 2)] // before ｸﾞ
+    [InlineData(2, 0)] // before ﾊﾟ
+    [InlineData(0, 0)] // clamped at 0
+    public void PreviousBoundary_TreatsKanaPlusSoundMarkAsOneCluster(int index, int expected)
+        => Assert.Equal(expected, Grapheme.PreviousBoundary(Pug, index));
 }
