@@ -66,6 +66,12 @@ public class ScreenTests
     // base char + combining mark is a single-column cluster: the cursor lands one column past it, not two.
     [InlineData("e\u0301", 1)]                                    // e + combining acute accent (decomposed "é")
     [InlineData("ae\u0301b", 3)]                                  // a + combining "é" + b
+    // Halfwidth katakana + (semi-)voiced sound mark: each kana+mark pair is ONE grapheme cluster, but the
+    // sound mark is a SPACING extender that takes its own halfwidth cell, so a pair is two columns. The
+    // cursor must land at column 4 past "ﾊﾟｸﾞ" (= パグ "pug"), matching what the terminal renders - not 2.
+    // See https://github.com/microsoft/terminal/issues/18087 and issue #270.
+    [InlineData("ﾊﾟｸﾞ", 4)]                   // ﾊﾟｸﾞ = U+FF8A + semi-voiced U+FF9F + U+FF78 + voiced U+FF9E
+    [InlineData("aﾊﾟb", 4)]                            // a + ﾊﾟ kana+mark cluster (2 columns) + b
     public void ScreenCursorPositionTest(string text, int expectedCursorPosition)
     {
         var screen = new Screen(

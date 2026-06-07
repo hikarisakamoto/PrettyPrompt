@@ -15,17 +15,21 @@ namespace PrettyPrompt.Rendering;
 /// <summary>
 /// Calculates how many terminal columns ("cells") a character or string occupies.
 ///
-/// <para>
 /// Per-scalar widths come from <see cref="UnicodeCalculator"/> — a vendored, source-only copy of
-/// https://github.com/spectreconsole/wcwidth (Unicode 16). PrettyPrompt layers grapheme-cluster
-/// awareness on top: a cluster (an emoji ZWJ sequence such as "🤦🏼‍♂️", or a base character followed
-/// by combining marks / a variation selector) occupies the width of its <b>base scalar value</b> — the
-/// trailing scalars modify the glyph but add no columns. Each cluster's width is capped at 2, because
-/// the renderer models every cell as one or two columns wide (see <see cref="Cell"/>); without the cap,
-/// summing the parts of a cluster (e.g. base + skin-tone modifier = 2 + 2) produced widths of 3-5 and
-/// crashed cursor positioning. See https://github.com/waf/PrettyPrompt/issues/270.
-/// </para>
+/// https://github.com/spectreconsole/wcwidth (Unicode 16). On top of that PrettyPrompt adds grapheme-cluster
+/// awareness, so a multi-scalar cluster (an emoji ZWJ sequence such as "🤦🏼‍♂️", or a base character followed
+/// by combining marks / a variation selector) is sized as the single glyph the terminal draws. The rules:
+/// 
+/// - A cluster occupies the width of its <b>base scalar value</b>. Trailing combining marks, zero-width joiners,
+///   emoji modifiers (e.g. skin tones), and variation selectors shape the glyph but add no columns.
+/// - Exception: a halfwidth katakana voiced / semi-voiced sound mark (U+FF9E, U+FF9F) is a grapheme extender
+///   too, but it is a <b>spacing</b> mark that takes its own halfwidth cell rather than overlaying the base,
+///   so it adds a column — e.g. "ﾊﾟ" is one cluster but two columns.
+/// - Every cluster's width is <b>capped at 2</b>, because the renderer models each cell as one or two columns
+///   wide (see <see cref="Cell"/>). Without the cap, summing a cluster's parts (e.g. base + skin-tone modifier
+///    = 2 + 2) produced widths of 3-5 and crashed cursor positioning.
 /// </summary>
+/// <remarks>See https://github.com/waf/PrettyPrompt/issues/270</remarks>
 public static class UnicodeWidth
 {
     /// <summary>
@@ -68,7 +72,7 @@ public static class UnicodeWidth
     public static int GetGraphemeClusterWidth(ReadOnlySpan<char> cluster)
     {
         if (cluster.IsEmpty) return 0;
-        if (Rune.DecodeFromUtf16(cluster, out var baseRune, out _) != OperationStatus.Done)
+        if (Rune.DecodeFromUtf16(cluster, out var baseRune, out int baseLength) != OperationStatus.Done)
         {
             return 1; // ill-formed (e.g. a lone surrogate); be defensive and reserve a single column.
         }
@@ -77,7 +81,21 @@ public static class UnicodeWidth
         // that defaults to 1 - e.g. ⚠ (U+26A0) is 1 column but ⚠️ is a 2-column emoji; wcwidth misses this.
         // The length check skips a lone, base-less selector (no width of its own).
         if (cluster.Length > 1 && cluster.Contains((char)0xFE0F)) return 2;
-        return Clamp(UnicodeCalculator.GetWidth(baseRune));
+
+        int width = Clamp(UnicodeCalculator.GetWidth(baseRune));
+
+        // Halfwidth katakana voiced / semi-voiced sound marks (U+FF9E ﾞ, U+FF9F ﾟ) are SPACING grapheme
+        // extenders: StringInfo clusters each onto the preceding kana, but unlike a combining mark that
+        // overlays its base they render in their own halfwidth cell (category Lm, wcwidth 1). So e.g. "ﾊﾟ"
+        // (U+FF8A U+FF9F) is one cluster but occupies two columns. Add a column per trailing mark, which also
+        // keeps this in step with the per-char GetWidth path (it already counts them). The base path above
+        // handles a lone, base-less mark. See https://github.com/microsoft/terminal/issues/18087.
+        foreach (var c in cluster.Slice(baseLength))
+        {
+            if (c is (char)0xFF9E or (char)0xFF9F) width++;
+        }
+
+        return Math.Min(width, 2); // cap at the cell model's two columns (see remarks)
     }
 
     /// <summary>
